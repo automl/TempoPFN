@@ -1,0 +1,57 @@
+[project]
+name = "TempoPFN"
+version = "0.1.0"
+description = "Univariate Time Series Forecasting Using Linear RNNs"
+authors = [
+]
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10,<3.13"
+
+dependencies = [
+    "torch>=2.5.0",
+    "torchmetrics",
+    "triton==3.2.0",
+    "numpy",
+    "gpytorch",
+    "flash-linear-attention @ git+https://github.com/fla-org/flash-linear-attention@main",
+    "scikit-learn",  
+]
+
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python",
+    "Topic :: Software Development",
+    "Topic :: Scientific/Engineering",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+[project.optional-dependencies]
+dev = [
+    "wandb",
+    "ujson",
+    "build",
+    "pre-commit",
+    "pytest>=8",
+    "ruff",
+    "mypy",
+    "commitizen",
+    "black",
+    "matplotlib",
+    "gluonts",
+    "pyo",
+    "statsmodels"
+]
+
+[build-system]
+requires = ["setuptools>=68.2.2", "wheel>=0.41.2"]
+build-backend = "setuptools.build_meta"
+
+package-dir = {"" = "src"}

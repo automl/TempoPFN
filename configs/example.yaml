@@ -1,0 +1,118 @@
+train_data_path: null # Replace with the path to root of the training data directory with subdirectories for each generator (e.g. gp, kernel, etc.)
+model_path: ./models # Path where the model will be saved
+model_name: TempoPFN
+continue_training: false
+checkpoint_path: null # Replace with the path to the checkpoint file
+seed: 2025
+wandb: true # whether to log to wandb
+wandb_project_name: TempoPFNTraining 
+wandb_entity: university-of-freiburg-2024
+wandb_plots: false
+
+batch_size: 40
+num_training_iterations: 1000000 # 1M  
+validation_batch_size: 64  
+num_validation_batches: 1
+num_workers: 4
+gradient_accumulation_enabled: true
+accumulation_steps: 5  # Number of batches to accumulate before updating (effective batch size = batch_size * accumulation_steps)
+log_interval: 2048
+save_every: 100000
+
+generator_proportions:
+  forecast_pfn: 1.0
+  gp: 1.0 
+  kernel: 1.0  
+  sawtooth: 1.0  
+  sinewave: 1.0  
+  step: 1.0  
+  anomaly: 1.0 
+  spike: 1.0 
+  cauker_univariate: 1.0 
+  ou_process: 3.0
+  audio_financial_volatility: 0.1
+  audio_multi_scale_fractal: 0.1
+  audio_network_topology: 0.5
+  audio_stochastic_rhythm: 0.5
+  augmented_per_sample_2048: 2.0
+  augmented_temp_batch_2048: 2.0
+
+# Learning Rate Scheduler Configuration
+lr_scheduler: cosine  # Options: "warmup_stable_decay", "cosine_with_warmup", "cosine_with_restarts", "cosine"
+
+# Learning Rate Parameters
+peak_lr: 0.0002           # 2e-4 - Peak learning rate
+min_lr_ratio: 0.01        # Minimum LR as fraction of peak LR 
+
+# WSD Scheduler Specific Parameters
+warmup_ratio: 0.003       # 0.3% of total steps for warmup
+stable_ratio: 0.90        # 90% of total steps at stable learning rate
+decay_type: cosine        # Type of decay: "cosine" or "linear"
+
+# Alternative Scheduler Parameters (if using different schedulers)
+num_cycles: 0.5           # For cosine_with_warmup: 0.5 = half cosine wave
+num_restart_cycles: 4     # For cosine_with_restarts: number of restart cycles
+
+# Optimizer Configuration
+weight_decay: 0.01        # Weight decay for AdamW
+beta1: 0.9               # Adam beta1 parameter
+beta2: 0.98              # Adam beta2 parameter (optimized for transformers)
+optimizer_eps: 1e-6      # Adam epsilon
+
+# Training Stability
+gradient_clip_val: 100.0     
+scaler: custom_robust   
+
+gift_eval:
+  evaluate_on_gift_eval: false
+  max_context_length: 3072
+  create_plots: false
+  max_plots: 5
+  dataset_storage_path: null # Replace with the path to the dataset storage path
+
+data_augmentation:
+  nan_augmentation: true
+  scaler_augmentation: false
+  length_shortening: true
+  nan_stats_path: ./data/nan_stats.json
+
+augmentation_probabilities:
+  scaler_augmentation: 0.5
+
+TimeSeriesModel:
+  # Core architecture
+  embed_size: 512
+  num_encoder_layers: 10
+
+  # Scaling and preprocessing
+  scaler: custom_robust
+  epsilon: 0.00001
+  scaler_clamp_value: null
+  handle_constants: false
+
+  # Time features
+  K_max: 25
+  time_feature_config:
+    use_enhanced_features: true
+    use_holiday_features: false
+    use_index_features: true
+    include_seasonality_info: true
+
+  drop_enc_allow: false
+  encoding_dropout: 0.0
+
+  # Encoder configuration
+  encoder_config:
+    attn_mode: chunk
+    num_heads: 4
+    expand_v: 1.0
+    use_gate: false    
+    use_short_conv: true
+    conv_size: 16
+    allow_neg_eigval: true
+    use_forget_gate: true
+    num_householder: 4
+    weaving: true
+
+  loss_type: 'quantile'
+  quantiles: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]

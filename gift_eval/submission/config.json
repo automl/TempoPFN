@@ -1,0 +1,6 @@
+{
+    "model": "TempoPFN",
+    "model_type": "pretrained",
+    "model_dtype": "float32",
+    "model_link": "https://github.com/automl/TempoPFN/tree/main"
+}
