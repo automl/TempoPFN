@@ -49,8 +49,9 @@ dev = [
     "mypy",
     "commitizen",
     "black",
-    "pyo",
-    "statsmodels"
+    "cupy-cuda12x",
+    "statsmodels",
+    "pyo", # Requires portaudio
 ]
 
 [build-system]
