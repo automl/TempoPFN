@@ -18,7 +18,6 @@ This repository includes the [**pretrained 35M parameter model,**](https://www.d
 * **Open and Reproducible:** Includes the full synthetic data pipeline, configurations, and scripts to reproduce training from scratch.  
 * **State-Tracking Stability:** The GatedDeltaProduct recurrence and *state-weaving* mechanism preserve temporal continuity and information flow across long horizons, improving robustness without non-linear recurrence.
 
-
 ![TempoPFN Overview](https://iili.io/KlUjfcP.png)
 
 ## ⚙️ Installation
@@ -107,7 +106,7 @@ A core contribution of this work is our open-source synthetic data pipeline, loc
 * **Adapted Priors:** ForecastPFN, KernelSynth, GaussianProcess (GP), and CauKer (Structural Causal Models).
 * **Novel Priors:** SDE (a flexible regime-switching Ornstein-Uhlenbeck process), Sawtooth, StepFunction, Anomaly, Spikes, SineWave, and Audio-Inspired generators (Stochastic Rhythms, Financial Volatility, Network Topology, Multi-Scale Fractals).
 
-You can easily generate your own data by instantiating a generator wrapper. See `examples/generate_synthetic_data.py` for a minimal script, or inspect the generator code in `src/synthetic_generation/`.
+You can easily generate your own data by installing the development dependencies and instantiating a generator wrapper. See `examples/generate_synthetic_data.py` for a minimal script, or inspect the generator code in `src/synthetic_generation/`.
 
 ## 🤝 License
 
