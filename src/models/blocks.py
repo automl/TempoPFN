@@ -1,7 +1,10 @@
 import torch
 import torch.nn as nn
-from fla.models.gated_deltaproduct import GatedDeltaProductConfig
-from fla.models.gated_deltaproduct.modeling_gated_deltaproduct import GatedDeltaProductBlock
+
+from src.models.gated_deltaproduct import GatedDeltaProductConfig
+from src.models.gated_deltaproduct.modeling_gated_deltaproduct import (
+    GatedDeltaProductBlock,
+)
 
 
 class GatedDeltaProductEncoder(nn.Module):
