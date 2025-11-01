@@ -3,6 +3,8 @@ name = "TempoPFN"
 version = "0.1.0"
 description = "Univariate Time Series Forecasting Using Linear RNNs"
 authors = [
+    { name = "Vladyslav Moroshan" },
+    { name = "Julien Siems" },
 ]
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -15,7 +17,10 @@ dependencies = [
     "numpy",
     "gpytorch",
     "flash-linear-attention @ git+https://github.com/fla-org/flash-linear-attention@main",
-    "scikit-learn",  
+    "scikit-learn", 
+    "pandas", 
+    "gluonts",
+    "matplotlib",
 ]
 
 classifiers = [
@@ -44,8 +49,6 @@ dev = [
     "mypy",
     "commitizen",
     "black",
-    "matplotlib",
-    "gluonts",
     "pyo",
     "statsmodels"
 ]
