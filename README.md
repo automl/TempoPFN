@@ -7,7 +7,7 @@
 
 **TempoPFN** introduced in [TempoPFN: Synthetic Pre-Training of Linear RNNs for Zero-Shot Time Series Forecasting](https://arxiv.org/abs/2510.25502), is a univariate time series foundation model pretrained **entirely on synthetic data**. It delivers top-tier zero-shot forecasting accuracy while remaining fully reproducible and free from real-data leakage.
 
-Built on a **Linear RNN (GatedDeltaProduct)** backbone, TempoPFN performs end-to-end forecasting without patching or windowing. Its design enables fully parallelizable training and inference while maintaining stable temporal state-tracking across long sequences.
+Built on a **Linear RNN (GatedDeltaProduct)** backbone, TempoPFN performs end-to-end forecasting without patching or windowing. Its design enables fully parallelizable training and inference while maintaining stable temporal state-tracking across long sequences. The GatedDeltaProduct architecture is based on [DeltaProduct](https://arxiv.org/html/2502.10297v3), extended with state-weaving for time series forecasting. For detailed information about the architecture and custom modifications, see [`src/models/gated_deltaproduct/README.md`](src/models/gated_deltaproduct/README.md).
 
 This repository includes the [**pretrained 35M parameter model,**](https://www.dropbox.com/scl/fi/5vmjr7nx9wj9w1vl2giuv/checkpoint.pth?rlkey=qmk08ojp7wj0l6kpm8hzgbzju&st=dyr07d00&dl=0), all training and inference code, and the **complete synthetic data generation pipeline** used for pretraining.
 
@@ -28,9 +28,9 @@ git clone https://github.com/automl/TempoPFN.git
 cd TempoPFN
 python -m venv venv && source venv/bin/activate
 
-# 1. Install PyTorch first (see PyTorch website for your specific CUDA version)
+# 1. Install PyTorch version matching the CUDA version
 # Example for CUDA 12.6:
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+pip install torch --index-url https://download.pytorch.org/whl/cu126
 
 # 2. Install TempoPFN and all other dependencies
 pip install .
@@ -38,8 +38,6 @@ export PYTHONPATH=$PWD
 ```
 
 ## 🚀 Quick Start: Run the Demo
-
-
 
 **Prerequisites:**
 * You must have a **CUDA-capable GPU** with a matching PyTorch version installed.
@@ -68,6 +66,8 @@ jupyter notebook examples/quick_start_tempo_pfn.ipynb
 ### Hardware & Performance Tips
 
 **GPU Required:** Inference requires a CUDA-capable GPU. Tested on NVIDIA A100/H100.
+
+**First Inference May Be Slow:** Initial calls for unseen sequence lengths trigger Triton kernel compilation. Subsequent runs are cached and fast.
 
 **Triton Caches:** To prevent slowdowns from writing caches to a network filesystem, route caches to a local directory (like `/tmp`) before running:
 ```bash
