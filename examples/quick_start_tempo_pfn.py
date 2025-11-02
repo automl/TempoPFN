@@ -51,7 +51,7 @@ def main():
     if args.checkpoint:
         model_path = args.checkpoint
     else:
-        dropbox_url = "https://www.dropbox.com/scl/fi/5vmjr7nx9wj9w1vl2giuv/checkpoint.pth?rlkey=qmk08ojp7wj0l6kpm8hzgbzju&st=dyr07d00&dl=0"
+        dropbox_url = "https://www.dropbox.com/scl/fi/mqsni5lehooyaw93y3uzq/checkpoint_38M.pth?rlkey=3uyehvmtted02xkha24zgpzb6&st=seevsbkn&dl=0"
         model_path = download_checkpoint_if_needed(dropbox_url, target_dir="models")
 
     logger.info("=== Time Series Model Demo (Univariate Quantile) ===")
