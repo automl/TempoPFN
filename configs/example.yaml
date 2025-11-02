@@ -105,11 +105,12 @@ TimeSeriesModel:
   encoder_config:
     attn_mode: chunk
     num_heads: 4
-    expand_v: 1.0
-    use_gate: false    
+    expand_v: 1.0   
     use_short_conv: true
-    conv_size: 16
-    allow_neg_eigval: true
+    conv_size: 32
+    allow_neg_eigval: true   
+    hidden_ratio: 1.0   
+    use_gate: true 
     use_forget_gate: true
     num_householder: 4
     weaving: true
