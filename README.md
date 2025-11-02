@@ -9,7 +9,7 @@
 
 Built on a **Linear RNN (GatedDeltaProduct)** backbone, TempoPFN performs end-to-end forecasting without patching or windowing. Its design enables fully parallelizable training and inference while maintaining stable temporal state-tracking across long sequences. The GatedDeltaProduct architecture is based on [DeltaProduct](https://arxiv.org/html/2502.10297v3), extended with state-weaving for time series forecasting. For detailed information about the architecture and custom modifications, see [`src/models/gated_deltaproduct/README.md`](src/models/gated_deltaproduct/README.md).
 
-This repository includes the [**pretrained 35M parameter model,**](https://www.dropbox.com/scl/fi/5vmjr7nx9wj9w1vl2giuv/checkpoint.pth?rlkey=qmk08ojp7wj0l6kpm8hzgbzju&st=dyr07d00&dl=0), all training and inference code, and the **complete synthetic data generation pipeline** used for pretraining.
+This repository includes the [**pretrained 38M parameter model,**](https://www.dropbox.com/scl/fi/mqsni5lehooyaw93y3uzq/checkpoint_38M.pth?rlkey=3uyehvmtted02xkha24zgpzb6&st=seevsbkn&dl=0), all training and inference code, and the **complete synthetic data generation pipeline** used for pretraining.
 
 ## ✨ Why TempoPFN?
 
