@@ -1,27 +1,24 @@
 import argparse
-import csv
 import logging
 import warnings
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import matplotlib
-import matplotlib.pyplot as plt
 from gluonts.model.evaluation import evaluate_model
 from gluonts.time_feature import get_seasonality
 from linear_operator.utils.cholesky import NumericalWarning
 
 from src.gift_eval.constants import (
-    ALL_DATASETS,
     DATASET_PROPERTIES,
     MED_LONG_DATASETS,
     METRICS,
     PRETTY_NAMES,
-    STANDARD_METRIC_NAMES,
 )
+from src.gift_eval.core import DatasetMetadata, EvaluationItem, expand_datasets_arg
 from src.gift_eval.data import Dataset
-from src.gift_eval.model_wrapper import TimeSeriesPredictor
+from src.gift_eval.predictor import TimeSeriesPredictor
+from src.gift_eval.results import write_results_to_disk
 from src.plotting.gift_eval_utils import create_plots_for_dataset
 
 logger = logging.getLogger(__name__)
@@ -52,26 +49,6 @@ gts_logger.addFilter(
 )
 
 
-@dataclass
-class DatasetMetadata:
-    full_name: str
-    key: str
-    freq: str
-    term: str
-    season_length: int
-    target_dim: int
-    to_univariate: bool
-    prediction_length: int
-    windows: int
-
-
-@dataclass
-class EvaluationItem:
-    dataset_metadata: DatasetMetadata
-    metrics: Dict
-    figures: List[Tuple[object, str]]
-
-
 def construct_evaluation_data(
     dataset_name: str,
     dataset_storage_path: str,
@@ -88,13 +65,13 @@ def construct_evaluation_data(
     else:
         ds_key = dataset_name.lower()
         ds_key = PRETTY_NAMES.get(ds_key, ds_key)
-        ds_freq = DATASET_PROPERTIES[ds_key]["frequency"]
+        ds_freq = DATASET_PROPERTIES.get(ds_key, {}).get("frequency")
 
     for term in terms:
         # Skip medium/long terms for datasets that don't support them
         if (
             term == "medium" or term == "long"
-        ) and dataset_name not in MED_LONG_DATASETS.split():
+        ) and dataset_name not in MED_LONG_DATASETS:
             continue
 
         # Probe once to determine dimensionality
@@ -119,6 +96,7 @@ def construct_evaluation_data(
         # Compute metadata
         season_length = get_seasonality(dataset.freq)
         actual_freq = ds_freq if ds_freq else dataset.freq
+        
         metadata = DatasetMetadata(
             full_name=f"{ds_key}/{actual_freq}/{term}",
             key=ds_key,
@@ -134,81 +112,6 @@ def construct_evaluation_data(
         sub_datasets.append((dataset, metadata))
 
     return sub_datasets
-
-
-def _ensure_results_csv(csv_file_path: Path) -> None:
-    if not csv_file_path.exists():
-        csv_file_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(csv_file_path, "w", newline="") as csvfile:
-            writer = csv.writer(csvfile)
-            header = (
-                ["dataset", "model"]
-                + [f"eval_metrics/{name}" for name in STANDARD_METRIC_NAMES]
-                + [
-                    "domain",
-                    "num_variates",
-                ]
-            )
-            writer.writerow(header)
-
-
-def write_results_to_disk(
-    items: List[EvaluationItem],
-    dataset_name: str,
-    output_dir: Path,
-    model_name: str,
-    create_plots: bool,
-) -> None:
-    output_dir = output_dir / dataset_name
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_csv_path = output_dir / "results.csv"
-    _ensure_results_csv(output_csv_path)
-
-    with open(output_csv_path, "a", newline="") as csvfile:
-        writer = csv.writer(csvfile)
-        for item in items:
-            md = item.dataset_metadata
-            # Extract metric values in the standard order
-            metric_values: List[Optional[float]] = []
-            for metric_name in STANDARD_METRIC_NAMES:
-                value = item.metrics.get(metric_name, None)
-                if value is None:
-                    metric_values.append(None)
-                else:
-                    if (
-                        hasattr(value, "__len__")
-                        and not isinstance(value, (str, bytes))
-                        and len(value) == 1
-                    ):
-                        value = value[0]
-                    elif hasattr(value, "item"):
-                        value = value.item()
-                    metric_values.append(value)
-
-            # Lookup domain and num_variates from dataset properties
-            ds_key = md.key.lower()
-            props = DATASET_PROPERTIES.get(ds_key, {})
-            domain = props.get("domain", "unknown")
-            num_variates = props.get(
-                "num_variates", 1 if md.to_univariate else md.target_dim
-            )
-
-            row = [md.full_name, model_name] + metric_values + [domain, num_variates]
-            writer.writerow(row)
-
-            if create_plots and item.figures:
-                plots_dir = output_dir / "plots" / md.key / md.term
-                plots_dir.mkdir(parents=True, exist_ok=True)
-                for fig, filename in item.figures:
-                    filepath = plots_dir / filename
-                    fig.savefig(filepath, dpi=300, bbox_inches="tight")
-                    plt.close(fig)
-
-    logger.info(
-        f"Evaluation complete for dataset '{dataset_name}'. Results saved to {output_csv_path}"
-    )
-    if create_plots:
-        logger.info(f"Plots saved under {output_dir / 'plots'}")
 
 
 def evaluate_datasets(
@@ -276,17 +179,6 @@ def evaluate_datasets(
     return results
 
 
-def _expand_datasets_arg(datasets: List[str] | str) -> List[str]:
-    if datasets[0] == "all":
-        return list(ALL_DATASETS)
-    if isinstance(datasets, str):
-        datasets = [datasets]
-    for dataset in datasets:
-        if dataset not in ALL_DATASETS:
-            raise ValueError(f"Invalid dataset: {dataset}. Use one of {ALL_DATASETS}")
-    return datasets
-
-
 def _run_evaluation(
     predictor: TimeSeriesPredictor,
     datasets: List[str] | str,
@@ -301,7 +193,7 @@ def _run_evaluation(
     max_plots: int = 10,
 ) -> None:
     """Shared evaluation workflow used by both entry points."""
-    datasets_to_run = _expand_datasets_arg(datasets)
+    datasets_to_run = expand_datasets_arg(datasets)
     results_root = Path(output_dir)
 
     for ds_name in datasets_to_run:
@@ -444,8 +336,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset_storage_path",
         type=str,
-        required=True,
-        help="Path to the dataset storage directory",
+        default="/work/dlclarge2/moroshav-GiftEvalPretrain/gift_eval",
+        help="Path to the dataset storage directory (default: GIFT_EVAL)",
     )
     parser.add_argument(
         "--terms",

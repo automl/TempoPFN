@@ -6,7 +6,7 @@ import pandas as pd
 from gluonts.model.forecast import QuantileForecast
 
 from src.data.frequency import parse_frequency
-from src.plotting.plot_multivariate_timeseries import (
+from src.plotting.plot_timeseries import (
     plot_multivariate_timeseries,
 )
 
