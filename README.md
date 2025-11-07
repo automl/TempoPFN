@@ -1,7 +1,6 @@
 # TempoPFN: Synthetic Pre-Training of Linear RNNs for Zero-Shot Time Series Forecasting
 
-[![arXiv](https://img.shields.io/badge/arXiv-2510.25502-b31b1b.svg)](https://arxiv.org/abs/2510.25502)
-[![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)](https://github.com/automl/TempoPFN/blob/main/LICENSE)
+[![arXiv](https://img.shields.io/badge/arXiv-2510.25502-b31b1b.svg)](https://arxiv.org/abs/2510.25502) [![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)](https://github.com/automl/TempoPFN/blob/main/LICENSE) [![HF](https://img.shields.io/badge/🤗%20Hugging%20Face-Repo-yellow)](https://huggingface.co/AutoML-org/TempoPFN)
 
 ---
 
@@ -18,57 +17,53 @@ This repository includes the [**pretrained 38M parameter model,**](https://www.d
 * **Open and Reproducible:** Includes the full synthetic data pipeline, configurations, and scripts to reproduce training from scratch.  
 * **State-Tracking Stability:** The GatedDeltaProduct recurrence and *state-weaving* mechanism preserve temporal continuity and information flow across long horizons, improving robustness without non-linear recurrence.
 
-![TempoPFN Overview](https://iili.io/KlUjfcP.png)
+![TempoPFN Overview](https://iili.io/KDCHpou.png)
 
 ## ⚙️ Installation
 
+This repository includes all training and inference code and the **complete synthetic data generation pipeline** used for pretraining.
+
+The **pretrained 38M parameter model** is hosted on our **[Hugging Face repository](https://huggingface.co/AutoML-org/TempoPFN)**.
+
+## 🚀 Get the Model & Quick Start
+
+The easiest and recommended way to get the model, inference code, and weights is to clone our **[Hugging Face repository](https://huggingface.co/AutoML-org/TempoPFN)**.
+
 ```bash
-git clone https://github.com/automl/TempoPFN.git
+# 1. Install Git LFS (if you haven't already)
+# On Ubuntu: sudo apt-get install git-lfs
+# On macOS: brew install git-lfs
+git lfs install
+
+# 2. Clone the Hugging Face repository
+git clone https://huggingface.co/AutoML-org/TempoPFN
 cd TempoPFN
-python -m venv venv && source venv/bin/activate
 
-# 1. Install PyTorch version matching the CUDA version
-# Example for CUDA 12.6:
-pip install torch --index-url https://download.pytorch.org/whl/cu126
-
-# 2. Install TempoPFN and all other dependencies
-pip install .
+# 3. Set up the environment
+python3.12 -m venv venv & source venv/bin/activate
 export PYTHONPATH=$PWD
-```
 
-## 🚀 Quick Start: Run the Demo
+# 4. Install PyTorch version matching your CUDA version
+pip install torch --index-url https://download.pytorch.org/whl/cu128
 
-**Prerequisites:**
-* You must have a **CUDA-capable GPU** with a matching PyTorch version installed.
-* You have run `export PYTHONPATH=$PWD` from the repo's root directory (see Installation).
+# 5. Install dependencies
+pip install .
+pip install ".[dev]"
 
-### 1. Run the Quick Start Script
-
-Run a demo forecast on a synthetic sine wave:
-```bash
+# 4. Run the Quick Start Script 
 python examples/quick_start_tempo_pfn.py
-```
 
-### 2. Run with a Local Checkpoint
-
-If you have already downloaded the model (e.g., to `models/checkpoint.pth`), you can point the script to it:
-```bash
-python examples/quick_start_tempo_pfn.py --checkpoint models/checkpoint.pth
-```
-
-### 3. Run the Notebook version
-
-```bash
+# 5. Alternatively, you can run the Notebook version
 jupyter notebook examples/quick_start_tempo_pfn.ipynb
 ```
 
 ### Hardware & Performance Tips
 
-**GPU Required:** Inference requires a CUDA-capable GPU. Tested on NVIDIA A100/H100.
+**GPU Required:** Inference requires a CUDA-capable GPU with a matching PyTorch version installed. Tested on NVIDIA A100/H100.
 
-**First Inference May Be Slow:** Initial calls for unseen sequence lengths trigger Triton kernel compilation. Subsequent runs are cached and fast.
+**First Run:** The first inference for a new sequence length will be slow due to Triton kernel compilation. Subsequent runs will be fast.
 
-**Triton Caches:** To prevent slowdowns from writing caches to a network filesystem, route caches to a local directory (like `/tmp`) before running:
+**Cache Tip:** If using a network filesystem, prevent slowdowns by routing caches to a local directory (like `/tmp`) *before* running:
 ```bash
 LOCAL_CACHE_BASE="${TMPDIR:-/tmp}/tsf-$(date +%s)"
 mkdir -p "${LOCAL_CACHE_BASE}/triton" "${LOCAL_CACHE_BASE}/torchinductor"
@@ -80,22 +75,15 @@ python examples/quick_start_tempo_pfn.py
 
 ## 🚂 Training
 
+All training and model parameters are controlled via YAML files in `configs/`.  
 
-### Single-GPU Training (for debugging)
 ```bash
+# Single-GPU (Debug)
 torchrun --standalone --nproc_per_node=1 src/training/trainer_dist.py --config ./configs/train.yaml
-```
 
-### Multi-GPU Training (Single-Node)
-
-This example uses 8 GPUs. The training script uses PyTorch DistributedDataParallel (DDP).
-```bash
+# Multi-GPU (e.g., 8 GPUs)
 torchrun --standalone --nproc_per_node=8 src/training/trainer_dist.py --config ./configs/train.yaml
 ```
-
-### Configuration
-
-All training and model parameters are controlled via YAML files in `configs/` (architecture, optimizers, paths).  
 
 ## 💾 Synthetic Data Generation
 
