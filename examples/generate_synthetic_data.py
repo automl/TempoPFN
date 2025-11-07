@@ -1,9 +1,8 @@
+import importlib
 import logging
 import os
-from typing import List, Optional
 
 import torch
-
 from src.data.containers import BatchTimeSeriesContainer
 from src.data.utils import sample_future_length
 from src.plotting.plot_timeseries import plot_from_container
@@ -50,12 +49,17 @@ from src.synthetic_generation.spikes.spikes_generator_wrapper import (
 )
 from src.synthetic_generation.steps.step_generator_wrapper import StepGeneratorWrapper
 
-PYO_AVAILABLE = True
-try:
-    import pyo  # requires portaudio to be installed
-except (ImportError, OSError):
-    PYO_AVAILABLE = False
-else:
+PYO_AVAILABLE = False
+spec = importlib.util.find_spec("pyo")
+if spec is not None:
+    try:
+        _pyo = importlib.import_module("pyo")  # intentionally assigned to underscore to avoid unused-import lint
+    except (ImportError, OSError):
+        PYO_AVAILABLE = False
+    else:
+        PYO_AVAILABLE = True
+
+if PYO_AVAILABLE:
     from src.synthetic_generation.audio_generators.financial_volatility_wrapper import (
         FinancialVolatilityAudioWrapper,
     )
@@ -69,9 +73,7 @@ else:
         StochasticRhythmAudioWrapper,
     )
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -79,9 +81,9 @@ def visualize_batch_sample(
     generator,
     batch_size: int = 8,
     output_dir: str = "outputs/plots",
-    sample_idx: Optional[int] = None,
+    sample_idx: int | None = None,
     prefix: str = "",
-    seed: Optional[int] = None,
+    seed: int | None = None,
 ) -> None:
     os.makedirs(output_dir, exist_ok=True)
     name = generator.__class__.__name__
@@ -105,78 +107,40 @@ def visualize_batch_sample(
 
     indices = [sample_idx] if sample_idx is not None else range(batch_size)
     for i in indices:
-        filename = (
-            f"{prefix}_{name.lower().replace('generatorwrapper', '')}_sample_{i}.png"
-        )
+        filename = f"{prefix}_{name.lower().replace('generatorwrapper', '')}_sample_{i}.png"
         output_file = os.path.join(output_dir, filename)
         title = f"{prefix.capitalize()} {name.replace('GeneratorWrapper', '')} Synthetic Series (Sample {i})"
-        plot_from_container(
-            container, sample_idx=i, output_file=output_file, show=False, title=title
-        )
+        plot_from_container(container, sample_idx=i, output_file=output_file, show=False, title=title)
         logger.info(f"[{name}] Saved plot to {output_file}")
 
 
-def generator_factory(global_seed: int, total_length: int) -> List:
+def generator_factory(global_seed: int, total_length: int) -> list:
     generators = [
-        KernelGeneratorWrapper(
-            KernelGeneratorParams(global_seed=global_seed, length=total_length)
-        ),
-        GPGeneratorWrapper(
-            GPGeneratorParams(global_seed=global_seed, length=total_length)
-        ),
-        ForecastPFNGeneratorWrapper(
-            ForecastPFNGeneratorParams(global_seed=global_seed, length=total_length)
-        ),
-        SineWaveGeneratorWrapper(
-            SineWaveGeneratorParams(global_seed=global_seed, length=total_length)
-        ),
-        SawToothGeneratorWrapper(
-            SawToothGeneratorParams(global_seed=global_seed, length=total_length)
-        ),
-        StepGeneratorWrapper(
-            StepGeneratorParams(global_seed=global_seed, length=total_length)
-        ),
-        AnomalyGeneratorWrapper(
-            AnomalyGeneratorParams(global_seed=global_seed, length=total_length)
-        ),
-        SpikesGeneratorWrapper(
-            SpikesGeneratorParams(global_seed=global_seed, length=total_length)
-        ),
-        CauKerGeneratorWrapper(
-            CauKerGeneratorParams(
-                global_seed=global_seed, length=total_length, num_channels=5
-            )
-        ),
+        KernelGeneratorWrapper(KernelGeneratorParams(global_seed=global_seed, length=total_length)),
+        GPGeneratorWrapper(GPGeneratorParams(global_seed=global_seed, length=total_length)),
+        ForecastPFNGeneratorWrapper(ForecastPFNGeneratorParams(global_seed=global_seed, length=total_length)),
+        SineWaveGeneratorWrapper(SineWaveGeneratorParams(global_seed=global_seed, length=total_length)),
+        SawToothGeneratorWrapper(SawToothGeneratorParams(global_seed=global_seed, length=total_length)),
+        StepGeneratorWrapper(StepGeneratorParams(global_seed=global_seed, length=total_length)),
+        AnomalyGeneratorWrapper(AnomalyGeneratorParams(global_seed=global_seed, length=total_length)),
+        SpikesGeneratorWrapper(SpikesGeneratorParams(global_seed=global_seed, length=total_length)),
+        CauKerGeneratorWrapper(CauKerGeneratorParams(global_seed=global_seed, length=total_length, num_channels=5)),
         OrnsteinUhlenbeckProcessGeneratorWrapper(
-            OrnsteinUhlenbeckProcessGeneratorParams(
-                global_seed=global_seed, length=total_length
-            )
+            OrnsteinUhlenbeckProcessGeneratorParams(global_seed=global_seed, length=total_length)
         ),
     ]
 
     if PYO_AVAILABLE:
         generators.extend(
             [
-                StochasticRhythmAudioWrapper(
-                    StochasticRhythmAudioParams(
-                        global_seed=global_seed, length=total_length
-                    )
-                ),
+                StochasticRhythmAudioWrapper(StochasticRhythmAudioParams(global_seed=global_seed, length=total_length)),
                 FinancialVolatilityAudioWrapper(
-                    FinancialVolatilityAudioParams(
-                        global_seed=global_seed, length=total_length
-                    )
+                    FinancialVolatilityAudioParams(global_seed=global_seed, length=total_length)
                 ),
                 MultiScaleFractalAudioWrapper(
-                    MultiScaleFractalAudioParams(
-                        global_seed=global_seed, length=total_length
-                    )
+                    MultiScaleFractalAudioParams(global_seed=global_seed, length=total_length)
                 ),
-                NetworkTopologyAudioWrapper(
-                    NetworkTopologyAudioParams(
-                        global_seed=global_seed, length=total_length
-                    )
-                ),
+                NetworkTopologyAudioWrapper(NetworkTopologyAudioParams(global_seed=global_seed, length=total_length)),
             ]
         )
     else:

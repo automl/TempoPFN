@@ -1,8 +1,5 @@
-from typing import Optional
-
 import numpy as np
 from pyo import LFO, BrownNoise, Follower, Metro, Mix, Sine, TrigExpseg
-
 from src.synthetic_generation.abstract_classes import AbstractTimeSeriesGenerator
 from src.synthetic_generation.audio_generators.utils import (
     normalize_waveform,
@@ -35,7 +32,7 @@ class FinancialVolatilityAudioGenerator(AbstractTimeSeriesGenerator):
         jump_env_decay_time_range: tuple[float, float],
         jump_freq_range: tuple[float, float],
         jump_direction_up_probability: float,
-        random_seed: Optional[int] = None,
+        random_seed: int | None = None,
     ):
         self.length = length
         self.server_duration = server_duration
@@ -66,9 +63,7 @@ class FinancialVolatilityAudioGenerator(AbstractTimeSeriesGenerator):
         follower_freq = self.rng.uniform(*self.follower_freq_range)
         volatility_min, volatility_max = self.volatility_range
         volatility_osc = Sine(freq=carrier_freq)
-        volatility = Follower(volatility_osc, freq=follower_freq).range(
-            volatility_min, volatility_max
-        )
+        volatility = Follower(volatility_osc, freq=follower_freq).range(volatility_min, volatility_max)
         market_noise = BrownNoise(mul=volatility)
 
         # Jumps
@@ -76,19 +71,15 @@ class FinancialVolatilityAudioGenerator(AbstractTimeSeriesGenerator):
         jump_env_start = self.rng.uniform(*self.jump_env_start_range)
         jump_env_decay = self.rng.uniform(*self.jump_env_decay_time_range)
         jump_freq = self.rng.uniform(*self.jump_freq_range)
-        direction = (
-            1.0 if self.rng.random() < self.jump_direction_up_probability else -1.0
-        )
+        direction = 1.0 if self.rng.random() < self.jump_direction_up_probability else -1.0
 
         jump_trigger = Metro(time=jump_time).play()
-        jump_env = TrigExpseg(
-            jump_trigger, list=[(0.0, jump_env_start), (jump_env_decay, 0.0)]
-        )
+        jump_env = TrigExpseg(jump_trigger, list=[(0.0, jump_env_start), (jump_env_decay, 0.0)])
         jumps = Sine(freq=jump_freq, mul=jump_env * direction)
 
         return Mix([trend, market_noise, jumps], voices=1)
 
-    def generate_time_series(self, random_seed: Optional[int] = None) -> np.ndarray:
+    def generate_time_series(self, random_seed: int | None = None) -> np.ndarray:
         if random_seed is not None:
             self.rng = np.random.default_rng(random_seed)
 

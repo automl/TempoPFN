@@ -1,7 +1,4 @@
-from typing import Optional
-
 import numpy as np
-
 from src.data.containers import TimeSeriesContainer
 from src.synthetic_generation.abstract_classes import GeneratorWrapper
 from src.synthetic_generation.generator_params import StepGeneratorParams
@@ -25,9 +22,7 @@ class StepGeneratorWrapper(GeneratorWrapper):
         super().__init__(params)
         self.generator = StepGenerator(params)
 
-    def generate_batch(
-        self, batch_size: int, seed: Optional[int] = None
-    ) -> TimeSeriesContainer:
+    def generate_batch(self, batch_size: int, seed: int | None = None) -> TimeSeriesContainer:
         """
         Generate a batch of step function time series.
 

@@ -76,6 +76,7 @@ class GatedDeltaProductConfig(PretrainedConfig):
                 "`fuse_linear_cross_entropy` is enabled, which can improves memory efficiency "
                 "at the potential cost of reduced precision. "
                 "If you observe issues like loss divergence, consider disabling this setting.",
+                stacklevel=2,
             )
 
         # DeltaProduct specific
@@ -87,13 +88,9 @@ class GatedDeltaProductConfig(PretrainedConfig):
             if not isinstance(attn, dict):
                 raise ValueError("attn must be a dictionary")
             if "layers" not in attn:
-                raise ValueError(
-                    "Layer indices must be provided to initialize hybrid attention layers"
-                )
+                raise ValueError("Layer indices must be provided to initialize hybrid attention layers")
             if "num_heads" not in attn:
-                raise ValueError(
-                    "Number of heads must be provided to initialize hybrid attention layers"
-                )
+                raise ValueError("Number of heads must be provided to initialize hybrid attention layers")
             attn["num_kv_heads"] = attn.get("num_kv_heads", attn["num_heads"])
             attn["qkv_bias"] = attn.get("qkv_bias", False)
             attn["window_size"] = attn.get("window_size", None)

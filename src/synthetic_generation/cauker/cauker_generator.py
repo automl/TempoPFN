@@ -1,6 +1,5 @@
 import functools
 import random
-from typing import Dict, List, Optional, Tuple, Union
 
 import cupy as cp
 import networkx as nx
@@ -13,7 +12,6 @@ from sklearn.gaussian_process.kernels import (
     RationalQuadratic,
     WhiteKernel,
 )
-
 from src.synthetic_generation.abstract_classes import AbstractTimeSeriesGenerator
 from src.synthetic_generation.generator_params import CauKerGeneratorParams
 
@@ -31,7 +29,7 @@ class CauKerGenerator(AbstractTimeSeriesGenerator):
     # -------------------------------------------------------------------------
     # 1. Kernel Bank Construction (parameterised by `time_length`)
     # -------------------------------------------------------------------------
-    def build_kernel_bank(self, time_length: int) -> List:
+    def build_kernel_bank(self, time_length: int) -> list:
         return [
             # Hourly / sub‑hourly cycles
             ExpSineSquared(periodicity=24 / time_length),
@@ -123,9 +121,9 @@ class CauKerGenerator(AbstractTimeSeriesGenerator):
         *,
         kernel,
         X: np.ndarray,
-        random_seed: Optional[int] = None,
+        random_seed: int | None = None,
         method: str = "eigh",
-        mean_vec: Optional[np.ndarray] = None,
+        mean_vec: np.ndarray | None = None,
     ) -> np.ndarray:
         if X.ndim == 1:
             X = X[:, None]
@@ -141,9 +139,7 @@ class CauKerGenerator(AbstractTimeSeriesGenerator):
         if random_seed is not None:
             cp.random.seed(random_seed)
 
-        ts_gpu = cp.random.multivariate_normal(
-            mean=mean_gpu, cov=cov_gpu, method=method
-        )
+        ts_gpu = cp.random.multivariate_normal(mean=mean_gpu, cov=cov_gpu, method=method)
         return cp.asnumpy(ts_gpu)
 
     # -------------------------------------------------------------------------
@@ -179,14 +175,12 @@ class CauKerGenerator(AbstractTimeSeriesGenerator):
         alpha = np.random.uniform(0.01, 0.3)
         return np.where(x > 0, x, alpha * x)
 
-    def random_edge_mapping(self, parents_data: List[np.ndarray]) -> np.ndarray:
+    def random_edge_mapping(self, parents_data: list[np.ndarray]) -> np.ndarray:
         combined = np.stack(parents_data, axis=1)
         W = np.random.randn(len(parents_data))
         b = np.random.randn()
         non_linear_input = combined @ W + b
-        chosen_func = np.random.choice(
-            ["linear", "relu", "sigmoid", "sin", "mod", "leakyrelu"]
-        )
+        chosen_func = np.random.choice(["linear", "relu", "sigmoid", "sin", "mod", "leakyrelu"])
         return self.random_activation(non_linear_input, chosen_func)
 
     # -------------------------------------------------------------------------
@@ -200,7 +194,7 @@ class CauKerGenerator(AbstractTimeSeriesGenerator):
         max_parents: int,
         seed: int,
         num_nodes: int,
-    ) -> Dict[int, np.ndarray]:
+    ) -> dict[int, np.ndarray]:
         np.random.seed(seed)
         random.seed(seed)
 
@@ -208,15 +202,13 @@ class CauKerGenerator(AbstractTimeSeriesGenerator):
         kernel_bank = self.build_kernel_bank(time_length)
 
         root_nodes = [n for n in dag.nodes if dag.in_degree(n) == 0]
-        node_data: Dict[int, np.ndarray] = {}
+        node_data: dict[int, np.ndarray] = {}
 
         X = np.linspace(0.0, 1.0, time_length)
 
         # Sample roots directly from the GP prior
         for r in root_nodes:
-            selected_kernels = np.random.choice(
-                kernel_bank, np.random.randint(1, 8), replace=True
-            )
+            selected_kernels = np.random.choice(kernel_bank, np.random.randint(1, 8), replace=True)
             kernel = functools.reduce(self.random_binary_map, selected_kernels)
             mean_vec = self.random_mean_combination(X)
             node_data[r] = self.sample_from_gp_prior_efficient_gpu(
@@ -236,12 +228,12 @@ class CauKerGenerator(AbstractTimeSeriesGenerator):
     # -------------------------------------------------------------------------
     # Public API: generate one multivariate series (length, num_channels)
     # -------------------------------------------------------------------------
-    def generate_time_series(self, random_seed: Optional[int] = None) -> np.ndarray:
+    def generate_time_series(self, random_seed: int | None = None) -> np.ndarray:
         """Generate one multivariate series with shape (length, num_channels)."""
         seed = self.params.global_seed if random_seed is None else random_seed
 
         # Resolve num_channels which can be int or (min, max)
-        desired_channels: Union[int, Tuple[int, int]] = self.params.num_channels
+        desired_channels: int | tuple[int, int] = self.params.num_channels
         if isinstance(desired_channels, tuple):
             low, high = desired_channels
             if low > high:
@@ -251,9 +243,7 @@ class CauKerGenerator(AbstractTimeSeriesGenerator):
             num_channels = int(desired_channels)
 
         if num_channels > self.params.num_nodes:
-            raise ValueError(
-                f"num_channels ({num_channels}) cannot exceed num_nodes ({self.params.num_nodes})."
-            )
+            raise ValueError(f"num_channels ({num_channels}) cannot exceed num_nodes ({self.params.num_nodes}).")
 
         node_data = self.generate_scm_time_series(
             time_length=self.params.length,

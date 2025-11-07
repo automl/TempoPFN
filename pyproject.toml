@@ -64,7 +64,7 @@ build-backend = "setuptools.build_meta"
 package-dir = {"" = "src"}
 
 [tool.ruff]
-line-length = 88
+line-length = 120
 
 # Set the minimum Python version to target.
 target-version = "py312"

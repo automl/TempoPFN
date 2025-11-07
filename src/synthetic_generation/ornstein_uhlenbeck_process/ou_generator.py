@@ -1,8 +1,7 @@
+from collections.abc import Callable
 from dataclasses import replace
-from typing import Callable, Dict, Optional
 
 import numpy as np
-
 from src.synthetic_generation.abstract_classes import AbstractTimeSeriesGenerator
 from src.synthetic_generation.generator_params import (
     OrnsteinUhlenbeckProcessGeneratorParams,
@@ -28,22 +27,16 @@ class OrnsteinUhlenbeckProcessGenerator(AbstractTimeSeriesGenerator):
         self.rng = np.random.default_rng(params.global_seed)
 
     # == Regime switching ==
-    def _generate_regime_sequence(
-        self, transition_matrix: np.ndarray, num_steps: int
-    ) -> np.ndarray:
+    def _generate_regime_sequence(self, transition_matrix: np.ndarray, num_steps: int) -> np.ndarray:
         regimes = np.zeros(num_steps, dtype=int)
         regimes[0] = int(self.rng.integers(0, transition_matrix.shape[0]))
         for i in range(1, num_steps):
             current = regimes[i - 1]
-            regimes[i] = self.rng.choice(
-                transition_matrix.shape[0], p=transition_matrix[current, :]
-            )
+            regimes[i] = self.rng.choice(transition_matrix.shape[0], p=transition_matrix[current, :])
         return regimes
 
     # == Time-varying parameter generation ==
-    def _create_trend_function(
-        self, trend_config: TrendConfig, t_values: np.ndarray
-    ) -> Callable[[float], float]:
+    def _create_trend_function(self, trend_config: TrendConfig, t_values: np.ndarray) -> Callable[[float], float]:
         """Create a trend function based on the specified trend type."""
         trend_type = trend_config.trend_type
 
@@ -62,9 +55,7 @@ class OrnsteinUhlenbeckProcessGenerator(AbstractTimeSeriesGenerator):
         elif trend_type == TrendType.LOGISTIC:
             growth_rate = self.rng.uniform(*trend_config.logistic_growth_rate_range)
             capacity = self.rng.uniform(*trend_config.logistic_capacity_range)
-            midpoint_ratio = self.rng.uniform(
-                *trend_config.logistic_midpoint_ratio_range
-            )
+            midpoint_ratio = self.rng.uniform(*trend_config.logistic_midpoint_ratio_range)
             midpoint = midpoint_ratio * t_values[-1]
             return lambda t: capacity / (1.0 + np.exp(-growth_rate * (t - midpoint)))
 
@@ -141,27 +132,19 @@ class OrnsteinUhlenbeckProcessGenerator(AbstractTimeSeriesGenerator):
             # Too many changes requested, reduce number
             num_changes = max(1, int(total_time / min_segment) - 1)
 
-        change_times = np.sort(
-            self.rng.uniform(min_segment, total_time - min_segment, num_changes)
-        )
-        change_magnitudes = self.rng.uniform(
-            *config.structural_change_magnitude_range, size=num_changes
-        )
+        change_times = np.sort(self.rng.uniform(min_segment, total_time - min_segment, num_changes))
+        change_magnitudes = self.rng.uniform(*config.structural_change_magnitude_range, size=num_changes)
 
         def structural_trend(t: float) -> float:
             base_value = base_function(t)
             structural_adjustment = 0.0
 
-            for change_time, magnitude in zip(change_times, change_magnitudes):
+            for change_time, magnitude in zip(change_times, change_magnitudes, strict=True):
                 if t >= change_time:
                     # Smooth step function for structural change
-                    transition_width = (
-                        min_segment * 0.1
-                    )  # 10% of minimum segment for smooth transition
+                    transition_width = min_segment * 0.1  # 10% of minimum segment for smooth transition
                     if transition_width > 0:
-                        smooth_step = 1.0 / (
-                            1.0 + np.exp(-10.0 * (t - change_time) / transition_width)
-                        )
+                        smooth_step = 1.0 / (1.0 + np.exp(-10.0 * (t - change_time) / transition_width))
                     else:
                         smooth_step = 1.0 if t >= change_time else 0.0
                     structural_adjustment += magnitude * smooth_step
@@ -216,9 +199,7 @@ class OrnsteinUhlenbeckProcessGenerator(AbstractTimeSeriesGenerator):
             # Sample amplitude trend if evolution is enabled
             amplitude_trend = 0.0
             if self.params.enable_seasonal_evolution:
-                amplitude_trend = self.rng.uniform(
-                    *self.params.seasonal_amplitude_trend_range
-                )
+                amplitude_trend = self.rng.uniform(*self.params.seasonal_amplitude_trend_range)
 
             component = {
                 "period": float(jittered_period),
@@ -243,16 +224,12 @@ class OrnsteinUhlenbeckProcessGenerator(AbstractTimeSeriesGenerator):
                 if comp.get("amplitude_trend", 0.0) != 0.0:
                     amplitude += comp["amplitude_trend"] * t
 
-                seasonal_value += amplitude * np.sin(
-                    2.0 * np.pi * t / comp["period"] + comp["phase"]
-                )
+                seasonal_value += amplitude * np.sin(2.0 * np.pi * t / comp["period"] + comp["phase"])
             return seasonal_value
 
         return seasonal_func
 
-    def _sample_seasonal_functions(
-        self, regime_params: Dict
-    ) -> Dict[str, Dict[str, Callable]]:
+    def _sample_seasonal_functions(self, regime_params: dict) -> dict[str, dict[str, Callable]]:
         """Create seasonal functions for each regime based on sampled components."""
         seasonal_functions = {"regime_0": {}, "regime_1": {}}
 
@@ -261,14 +238,12 @@ class OrnsteinUhlenbeckProcessGenerator(AbstractTimeSeriesGenerator):
 
             # Create seasonal function for mu if components exist
             if "mu_seasonality" in regime_data:
-                seasonal_functions[regime_key]["mu"] = self._create_seasonal_function(
-                    regime_data["mu_seasonality"]
-                )
+                seasonal_functions[regime_key]["mu"] = self._create_seasonal_function(regime_data["mu_seasonality"])
 
             # Create seasonal function for sigma if components exist
             if "sigma_seasonality" in regime_data:
-                seasonal_functions[regime_key]["sigma"] = (
-                    self._create_seasonal_function(regime_data["sigma_seasonality"])
+                seasonal_functions[regime_key]["sigma"] = self._create_seasonal_function(
+                    regime_data["sigma_seasonality"]
                 )
 
         return seasonal_functions
@@ -277,13 +252,13 @@ class OrnsteinUhlenbeckProcessGenerator(AbstractTimeSeriesGenerator):
     class _ParameterManager:
         def __init__(
             self,
-            params: Dict,
+            params: dict,
             num_steps: int,
-            trend_functions: Optional[Dict[str, Callable]] = None,
-            seasonal_functions: Optional[Dict[str, Callable]] = None,
+            trend_functions: dict[str, Callable] | None = None,
+            seasonal_functions: dict[str, Callable] | None = None,
         ):
             self.num_steps = num_steps
-            self.params: Dict = {}
+            self.params: dict = {}
             self.trend_functions = trend_functions or {}
             self.seasonal_functions = seasonal_functions or {}
 
@@ -291,11 +266,7 @@ class OrnsteinUhlenbeckProcessGenerator(AbstractTimeSeriesGenerator):
                 # Skip seasonal component lists - handle them separately
                 if key.endswith("_seasonality"):
                     self.params[key] = value
-                elif (
-                    isinstance(value, (tuple, list))
-                    and len(value) == 2
-                    and not callable(value)
-                ):
+                elif isinstance(value, (tuple, list)) and len(value) == 2 and not callable(value):
                     self.params[key] = np.linspace(value[0], value[1], num_steps)
                 else:
                     self.params[key] = value
@@ -331,9 +302,7 @@ class OrnsteinUhlenbeckProcessGenerator(AbstractTimeSeriesGenerator):
         return self._param_manager
 
     # == Single-step OU update ==
-    def _step_ou(
-        self, x_value: float, t_value: float, idx: int, dt: float, dW_value: float
-    ) -> float:
+    def _step_ou(self, x_value: float, t_value: float, idx: int, dt: float, dW_value: float) -> float:
         manager = self._get_params_from_managers(idx, t_value)
         theta = float(manager.get("theta", idx, t_value))
         mu = float(manager.get("mu", idx, t_value))
@@ -341,13 +310,11 @@ class OrnsteinUhlenbeckProcessGenerator(AbstractTimeSeriesGenerator):
         return float(x_value + theta * (mu - x_value) * dt + sigma * dW_value)
 
     # == Sampling primitives ==
-    def _sample_regime_parameters(self) -> Dict[str, Dict[str, float]]:
+    def _sample_regime_parameters(self) -> dict[str, dict[str, float]]:
         """Sample base regime parameters (before applying trends and seasonality)."""
         p = self.params
         regime0 = {
-            "theta": self.rng.uniform(
-                p.regime0_theta_range[0], p.regime0_theta_range[1]
-            ),
+            "theta": self.rng.uniform(p.regime0_theta_range[0], p.regime0_theta_range[1]),
             "mu": self.rng.normal(p.regime0_mu_mean_std[0], p.regime0_mu_mean_std[1]),
             "sigma": float(
                 self.rng.lognormal(
@@ -358,9 +325,7 @@ class OrnsteinUhlenbeckProcessGenerator(AbstractTimeSeriesGenerator):
             "x0": self.rng.normal(p.x0_mean_std[0], p.x0_mean_std[1]),
         }
         regime1 = {
-            "theta": self.rng.uniform(
-                p.regime1_theta_range[0], p.regime1_theta_range[1]
-            ),
+            "theta": self.rng.uniform(p.regime1_theta_range[0], p.regime1_theta_range[1]),
             "mu": self.rng.normal(p.regime1_mu_mean_std[0], p.regime1_mu_mean_std[1]),
             "sigma": float(
                 self.rng.lognormal(
@@ -385,9 +350,7 @@ class OrnsteinUhlenbeckProcessGenerator(AbstractTimeSeriesGenerator):
 
         return {"regime_0": regime0, "regime_1": regime1}
 
-    def _sample_trend_functions(
-        self, t_values: np.ndarray
-    ) -> Dict[str, Dict[str, Callable]]:
+    def _sample_trend_functions(self, t_values: np.ndarray) -> dict[str, dict[str, Callable]]:
         """Sample trend functions for each parameter and regime."""
         trend_functions = {"regime_0": {}, "regime_1": {}}
 
@@ -402,9 +365,7 @@ class OrnsteinUhlenbeckProcessGenerator(AbstractTimeSeriesGenerator):
                         # Sample trend type and create trend config using the global config as base
                         trend_type = self._sample_trend_type()
                         print(f"Sampling trend type: {trend_type}")
-                        trend_config = replace(
-                            self.params.trend_config, trend_type=trend_type
-                        )
+                        trend_config = replace(self.params.trend_config, trend_type=trend_type)
 
                         # Create trend function
                         base_trend = self._create_trend_function(trend_config, t_values)
@@ -416,9 +377,7 @@ class OrnsteinUhlenbeckProcessGenerator(AbstractTimeSeriesGenerator):
 
         return trend_functions
 
-    def _generate_fractional_brownian_motion(
-        self, num_steps: int, hurst: float, dt: float
-    ) -> np.ndarray:
+    def _generate_fractional_brownian_motion(self, num_steps: int, hurst: float, dt: float) -> np.ndarray:
         """Generate fractional Brownian motion for long-term memory effects."""
         if not (0 < hurst < 1):
             raise ValueError("Hurst exponent must be between 0 and 1")
@@ -435,31 +394,21 @@ class OrnsteinUhlenbeckProcessGenerator(AbstractTimeSeriesGenerator):
                 if k == 0:
                     correlations[k] = 1.0
                 else:
-                    correlations[k] = 0.5 * (
-                        (k + 1) ** (2 * hurst)
-                        - 2 * k ** (2 * hurst)
-                        + (k - 1) ** (2 * hurst)
-                    )
+                    correlations[k] = 0.5 * ((k + 1) ** (2 * hurst) - 2 * k ** (2 * hurst) + (k - 1) ** (2 * hurst))
 
             # Apply convolution (simplified approach)
-            correlated_noise = np.convolve(
-                noise, correlations[: min(100, num_steps)], mode="same"
-            )
+            correlated_noise = np.convolve(noise, correlations[: min(100, num_steps)], mode="same")
             return correlated_noise * np.sqrt(dt)
 
         return noise * np.sqrt(dt)
 
     def _sample_transition_matrix(self) -> np.ndarray:
-        p00 = float(
-            self.rng.uniform(self.params.p00_range[0], self.params.p00_range[1])
-        )
-        p11 = float(
-            self.rng.uniform(self.params.p11_range[0], self.params.p11_range[1])
-        )
+        p00 = float(self.rng.uniform(self.params.p00_range[0], self.params.p00_range[1]))
+        p11 = float(self.rng.uniform(self.params.p11_range[0], self.params.p11_range[1]))
         transition_matrix = np.array([[p00, 1.0 - p00], [1.0 - p11, p11]], dtype=float)
         return transition_matrix
 
-    def generate_time_series(self, random_seed: Optional[int] = None) -> np.ndarray:
+    def generate_time_series(self, random_seed: int | None = None) -> np.ndarray:
         """Generate a time series with enhanced realism through time-varying parameters."""
         if random_seed is not None:
             self.rng = np.random.default_rng(random_seed)
@@ -479,9 +428,7 @@ class OrnsteinUhlenbeckProcessGenerator(AbstractTimeSeriesGenerator):
 
         # Generate regime switching
         transition_matrix = self._sample_transition_matrix()
-        self._regime_sequence = self._generate_regime_sequence(
-            transition_matrix, num_steps
-        )
+        self._regime_sequence = self._generate_regime_sequence(transition_matrix, num_steps)
 
         # Create parameter managers with trend and seasonal support
         self._param_managers = [

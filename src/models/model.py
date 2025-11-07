@@ -69,9 +69,7 @@ class TimeSeriesModel(nn.Module):
         if self.loss_type == "quantile" and self.quantiles is None:
             raise ValueError("Quantiles must be provided for quantile loss.")
         if self.quantiles:
-            self.register_buffer(
-                "qt", torch.tensor(self.quantiles, device=device).view(1, 1, 1, -1)
-            )
+            self.register_buffer("qt", torch.tensor(self.quantiles, device=device).view(1, 1, 1, -1))
 
         # Validate configuration before initialization
         self._validate_configuration()
@@ -89,8 +87,7 @@ class TimeSeriesModel(nn.Module):
 
         if self.embed_size % self.encoder_config["num_heads"] != 0:
             raise ValueError(
-                f"embed_size ({self.embed_size}) must be divisible by "
-                f"num_heads ({self.encoder_config['num_heads']})"
+                f"embed_size ({self.embed_size}) must be divisible by num_heads ({self.encoder_config['num_heads']})"
             )
 
     def _init_embedding_layers(self):
@@ -141,10 +138,7 @@ class TimeSeriesModel(nn.Module):
         self.initial_hidden_state = nn.ParameterList(
             [
                 nn.Parameter(
-                    torch.randn(
-                        1, self.encoder_config["num_heads"], head_k_dim, head_v_dim
-                    )
-                    / head_k_dim,
+                    torch.randn(1, self.encoder_config["num_heads"], head_k_dim, head_v_dim) / head_k_dim,
                     requires_grad=True,
                 )
                 for _ in range(num_initial_hidden_states)
@@ -174,16 +168,12 @@ class TimeSeriesModel(nn.Module):
             "batch_size": batch_size,
         }
 
-    def _compute_scaling(
-        self, history_values: torch.Tensor, history_mask: torch.Tensor = None
-    ):
+    def _compute_scaling(self, history_values: torch.Tensor, history_mask: torch.Tensor = None):
         """Compute scaling statistics and apply scaling."""
         scale_statistics = self.scaler.compute_statistics(history_values, history_mask)
         return scale_statistics
 
-    def _apply_scaling_and_masking(
-        self, values: torch.Tensor, scale_statistics: dict, mask: torch.Tensor = None
-    ):
+    def _apply_scaling_and_masking(self, values: torch.Tensor, scale_statistics: dict, mask: torch.Tensor = None):
         """Apply scaling and optional masking to values."""
         scaled_values = self.scaler.scale(values, scale_statistics)
 
@@ -191,9 +181,7 @@ class TimeSeriesModel(nn.Module):
             scaled_values = scaled_values * mask.unsqueeze(-1).float()
 
         if self.scaler_clamp_value is not None:
-            scaled_values = torch.clamp(
-                scaled_values, -self.scaler_clamp_value, self.scaler_clamp_value
-            )
+            scaled_values = torch.clamp(scaled_values, -self.scaler_clamp_value, self.scaler_clamp_value)
 
         return scaled_values
 
@@ -208,9 +196,7 @@ class TimeSeriesModel(nn.Module):
         seq_len = time_features.shape[1]
 
         if (torch.rand(1).item() < self.encoding_dropout) and drop_enc_allow:
-            return torch.zeros(
-                batch_size, seq_len, num_channels, self.embed_size, device=device
-            ).to(torch.float32)
+            return torch.zeros(batch_size, seq_len, num_channels, self.embed_size, device=device).to(torch.float32)
 
         pos_embed = self.time_feature_projection(time_features)
         return pos_embed.unsqueeze(2).expand(-1, -1, num_channels, -1)
@@ -232,9 +218,7 @@ class TimeSeriesModel(nn.Module):
         # Suppress padded time steps completely so padding is a pure batching artifact
         # history_mask: [B, S] -> broadcast to [B, S, 1, 1]
         if history_mask is not None:
-            mask_broadcast = (
-                history_mask.unsqueeze(-1).unsqueeze(-1).to(channel_embeddings.dtype)
-            )
+            mask_broadcast = history_mask.unsqueeze(-1).unsqueeze(-1).to(channel_embeddings.dtype)
             channel_embeddings = channel_embeddings * mask_broadcast
 
         batch_size, seq_len = scaled_history.shape[:2]
@@ -260,9 +244,7 @@ class TimeSeriesModel(nn.Module):
         # Vectorize across channels by merging the batch and channel dimensions.
         # [B, S, N, E] -> [B*N, S, E]
         channel_embedded = (
-            embedded.permute(0, 2, 1, 3)
-            .contiguous()
-            .view(batch_size * num_channels, seq_len, self.embed_size)
+            embedded.permute(0, 2, 1, 3).contiguous().view(batch_size * num_channels, seq_len, self.embed_size)
         )
 
         # Reshape target positional embeddings similarly: [B, P, N, E] -> [B*N, P, E]
@@ -276,23 +258,16 @@ class TimeSeriesModel(nn.Module):
         x = torch.concatenate([x, target_repr], dim=1)
         if self.encoder_config.get("weaving", True):
             # initial hidden state is learnable
-            hidden_state = torch.zeros_like(
-                self.initial_hidden_state[0].repeat(batch_size * num_channels, 1, 1, 1)
-            )
+            hidden_state = torch.zeros_like(self.initial_hidden_state[0].repeat(batch_size * num_channels, 1, 1, 1))
             for layer_idx, encoder_layer in enumerate(self.encoder_layers):
                 x, hidden_state = encoder_layer(
                     x,
-                    hidden_state
-                    + self.initial_hidden_state[layer_idx].repeat(
-                        batch_size * num_channels, 1, 1, 1
-                    ),
+                    hidden_state + self.initial_hidden_state[layer_idx].repeat(batch_size * num_channels, 1, 1, 1),
                 )
         else:
             # initial hidden state is separately learnable for each layer
             for layer_idx, encoder_layer in enumerate(self.encoder_layers):
-                initial_hidden_state = self.initial_hidden_state[layer_idx].repeat(
-                    batch_size * num_channels, 1, 1, 1
-                )
+                initial_hidden_state = self.initial_hidden_state[layer_idx].repeat(batch_size * num_channels, 1, 1, 1)
                 x, _ = encoder_layer(x, initial_hidden_state)
 
         # Use the last prediction_length positions
@@ -304,18 +279,14 @@ class TimeSeriesModel(nn.Module):
         # Original shape: [B*N, P, Q] where Q is num_quantiles or 1
         # Reshape the output back to [B, P, N, Q]
         output_dim = len(self.quantiles) if self.loss_type == "quantile" else 1
-        predictions = predictions.view(
-            batch_size, num_channels, prediction_length, output_dim
-        )
+        predictions = predictions.view(batch_size, num_channels, prediction_length, output_dim)
         predictions = predictions.permute(0, 2, 1, 3)  # [B, P, N, Q]
         # Squeeze the last dimension if not in quantile mode for backward compatibility
         if self.loss_type != "quantile":
             predictions = predictions.squeeze(-1)  # [B, P, N]
         return predictions
 
-    def forward(
-        self, data_container: BatchTimeSeriesContainer, drop_enc_allow: bool = False
-    ):
+    def forward(self, data_container: BatchTimeSeriesContainer, drop_enc_allow: bool = False):
         """Main forward pass."""
         # Preprocess data
         preprocessed = self._preprocess_data(data_container)
@@ -332,9 +303,7 @@ class TimeSeriesModel(nn.Module):
         )
 
         # Compute scaling
-        scale_statistics = self._compute_scaling(
-            preprocessed["history_values"], preprocessed["history_mask"]
-        )
+        scale_statistics = self._compute_scaling(preprocessed["history_values"], preprocessed["history_mask"])
 
         # Apply scaling
         history_scaled = self._apply_scaling_and_masking(
@@ -346,9 +315,7 @@ class TimeSeriesModel(nn.Module):
         # Scale future values if present
         future_scaled = None
         if preprocessed["future_values"] is not None:
-            future_scaled = self.scaler.scale(
-                preprocessed["future_values"], scale_statistics
-            )
+            future_scaled = self.scaler.scale(preprocessed["future_values"], scale_statistics)
 
         # Get positional embeddings
         history_pos_embed = self._get_positional_embeddings(
@@ -365,9 +332,7 @@ class TimeSeriesModel(nn.Module):
         )
 
         # Compute embeddings
-        history_embed = self._compute_embeddings(
-            history_scaled, history_pos_embed, preprocessed["history_mask"]
-        )
+        history_embed = self._compute_embeddings(history_scaled, history_pos_embed, preprocessed["history_mask"])
 
         # Generate predictions
         predictions = self._generate_predictions(
@@ -418,7 +383,8 @@ class TimeSeriesModel(nn.Module):
         if self.loss_type == "huber":
             if predictions.shape != future_scaled.shape:
                 raise ValueError(
-                    f"Shape mismatch for Huber loss: predictions {predictions.shape} vs future_scaled {future_scaled.shape}"
+                    f"Shape mismatch for Huber loss: predictions {predictions.shape} "
+                    f"vs future_scaled {future_scaled.shape}"
                 )
             return nn.functional.huber_loss(predictions, future_scaled)
         elif self.loss_type == "quantile":

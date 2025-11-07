@@ -1,5 +1,3 @@
-from typing import Dict, List, Optional, Tuple, Union
-
 import numpy as np
 
 from src.synthetic_generation.abstract_classes import AbstractTimeSeriesGenerator
@@ -22,22 +20,16 @@ class SineWaveGenerator(AbstractTimeSeriesGenerator):
         self,
         length: int = 1024,
         # Core sinusoidal parameters
-        num_components_range: Tuple[int, int] = (1, 3),
-        period_range: Union[
-            Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
-        ] = (10, 200),
-        amplitude_range: Union[
-            Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
-        ] = (0.5, 3.0),
-        phase_range: Union[
-            Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
-        ] = (0, 2 * np.pi),
+        num_components_range: tuple[int, int] = (1, 3),
+        period_range: tuple[float, float] | tuple[tuple[float, float], tuple[float, float]] = (10, 200),
+        amplitude_range: tuple[float, float] | tuple[tuple[float, float], tuple[float, float]] = (0.5, 3.0),
+        phase_range: tuple[float, float] | tuple[tuple[float, float], tuple[float, float]] = (0, 2 * np.pi),
         # Trend parameters
-        trend_slope_range: Tuple[float, float] = (-0.01, 0.01),
-        base_level_range: Tuple[float, float] = (0.0, 2.0),
+        trend_slope_range: tuple[float, float] = (-0.01, 0.01),
+        base_level_range: tuple[float, float] = (0.0, 2.0),
         # Noise parameters
         noise_probability: float = 0.7,  # Probability of adding noise (70% of series have noise)
-        noise_level_range: Tuple[float, float] = (
+        noise_level_range: tuple[float, float] = (
             0.05,
             0.2,
         ),  # Small noise as fraction of amplitude (when noise is applied)
@@ -46,7 +38,7 @@ class SineWaveGenerator(AbstractTimeSeriesGenerator):
         amplitude_modulation_strength: float = 0.1,  # Max 10% amplitude variation
         enable_frequency_modulation: bool = True,
         frequency_modulation_strength: float = 0.05,  # Max 5% frequency variation
-        random_seed: Optional[int] = None,
+        random_seed: int | None = None,
     ):
         """
         Parameters
@@ -121,9 +113,7 @@ class SineWaveGenerator(AbstractTimeSeriesGenerator):
         else:
             raise ValueError(f"Invalid scalar parameter format: {param}")
 
-    def _generate_sinusoidal_components(
-        self, t_array: np.ndarray, components: List[Dict]
-    ) -> np.ndarray:
+    def _generate_sinusoidal_components(self, t_array: np.ndarray, components: list[dict]) -> np.ndarray:
         """Generate sinusoidal signal from multiple components."""
         signal = np.zeros_like(t_array)
 
@@ -155,9 +145,7 @@ class SineWaveGenerator(AbstractTimeSeriesGenerator):
                 )
                 # Apply frequency modulation by modifying the phase
                 instantaneous_freq = 2 * np.pi / period * (1 + freq_modulation)
-                modulated_phase = (
-                    np.cumsum(instantaneous_freq) * (t_array[1] - t_array[0]) + phase
-                )
+                modulated_phase = np.cumsum(instantaneous_freq) * (t_array[1] - t_array[0]) + phase
                 base_signal = amplitude * np.sin(modulated_phase)
 
                 # Apply amplitude modulation on top if both are enabled
@@ -173,7 +161,7 @@ class SineWaveGenerator(AbstractTimeSeriesGenerator):
 
         return signal
 
-    def generate_time_series(self, random_seed: Optional[int] = None) -> np.ndarray:
+    def generate_time_series(self, random_seed: int | None = None) -> np.ndarray:
         """
         Generate a single univariate sinusoidal time series with trends and noise.
 
@@ -194,9 +182,7 @@ class SineWaveGenerator(AbstractTimeSeriesGenerator):
         t_array = np.linspace(0, self.length - 1, self.length)
 
         # Sample number of sinusoidal components
-        num_components = self.rng.integers(
-            self.num_components_range[0], self.num_components_range[1] + 1
-        )
+        num_components = self.rng.integers(self.num_components_range[0], self.num_components_range[1] + 1)
 
         # Sample parameters for each component
         components = []
@@ -208,41 +194,29 @@ class SineWaveGenerator(AbstractTimeSeriesGenerator):
             sampled_phase_range = self._sample_range_parameter(self.phase_range)
 
             period = self.rng.uniform(sampled_period_range[0], sampled_period_range[1])
-            amplitude = self.rng.uniform(
-                sampled_amplitude_range[0], sampled_amplitude_range[1]
-            )
+            amplitude = self.rng.uniform(sampled_amplitude_range[0], sampled_amplitude_range[1])
             phase = self.rng.uniform(sampled_phase_range[0], sampled_phase_range[1])
 
-            components.append(
-                {"period": period, "amplitude": amplitude, "phase": phase}
-            )
+            components.append({"period": period, "amplitude": amplitude, "phase": phase})
             total_amplitude += amplitude
 
         # Generate sinusoidal signal
         signal = self._generate_sinusoidal_components(t_array, components)
 
         # Add linear trend
-        trend_slope = self.rng.uniform(
-            self.trend_slope_range[0], self.trend_slope_range[1]
-        )
+        trend_slope = self.rng.uniform(self.trend_slope_range[0], self.trend_slope_range[1])
         trend = trend_slope * t_array
 
         # Add base level
-        base_level = self.rng.uniform(
-            self.base_level_range[0], self.base_level_range[1]
-        )
+        base_level = self.rng.uniform(self.base_level_range[0], self.base_level_range[1])
 
         # Combine signal, trend, and base level
         values = signal + trend + base_level
 
         # Add noise with specified probability (70% of series have noise, 30% are noise-free)
         if self.rng.random() < self.noise_probability:
-            noise_level = self.rng.uniform(
-                self.noise_level_range[0], self.noise_level_range[1]
-            )
-            noise_std = (
-                noise_level * total_amplitude
-            )  # Noise proportional to total amplitude
+            noise_level = self.rng.uniform(self.noise_level_range[0], self.noise_level_range[1])
+            noise_std = noise_level * total_amplitude  # Noise proportional to total amplitude
             noise = self.rng.normal(0, noise_std, size=self.length)
             values += noise
 

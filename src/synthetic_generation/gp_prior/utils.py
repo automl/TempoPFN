@@ -13,24 +13,16 @@ def custom_gaussian_sample(
     if rng is None:
         rng = np.random.default_rng()
     means = (
-        np.array(kernel_periods)
-        if kernel_periods is not None
-        else np.array([3, 5, 7, 14, 20, 21, 24, 30, 60, 90, 120])
+        np.array(kernel_periods) if kernel_periods is not None else np.array([3, 5, 7, 14, 20, 21, 24, 30, 60, 90, 120])
     )
 
     if allow_extension:
         if max_period_length > 200:
-            st = (
-                max_period_length // 2
-                if max(means) < max_period_length // 2
-                else max(means) + 100
-            )
+            st = max_period_length // 2 if max(means) < max_period_length // 2 else max(means) + 100
             means = np.append(means, np.arange(st, max_period_length, 100))
         else:
             if max(means) < max_period_length / 2:
-                means = np.append(
-                    means, np.array([max_period_length // 2, max_period_length])
-                )
+                means = np.append(means, np.array([max_period_length // 2, max_period_length]))
             elif max(means) < max_period_length:
                 means = np.append(means, max_period_length)
 
@@ -89,22 +81,16 @@ def create_kernel(
                 )
                 kernel_counter["periodic_kernel"] -= 1
             else:
-                period_length = custom_gaussian_sample(
-                    max_period_length, kernel_periods, gaussian_sample=True, rng=rng
-                )
+                period_length = custom_gaussian_sample(max_period_length, kernel_periods, gaussian_sample=True, rng=rng)
         else:
             period_length = rng.integers(1, max_period_length)
         kernel = gpytorch.kernels.PeriodicKernel()
         kernel.period_length = period_length / seq_len
         kernel.lengthscale = lengthscale
     elif kernel == "polynomial_kernel":
-        offset_prior = gpytorch.priors.GammaPrior(
-            rng.uniform(1, 4), rng.uniform(0.1, 1)
-        )
+        offset_prior = gpytorch.priors.GammaPrior(rng.uniform(1, 4), rng.uniform(0.1, 1))
         degree = rng.integers(1, max_degree)
-        kernel = gpytorch.kernels.PolynomialKernel(
-            offset_prior=offset_prior, power=degree
-        )
+        kernel = gpytorch.kernels.PolynomialKernel(offset_prior=offset_prior, power=degree)
     elif kernel == "matern_kernel":
         nu = rng.choice([0.5, 1.5, 2.5])  # Roughness parameter
         kernel = gpytorch.kernels.MaternKernel(nu=nu)

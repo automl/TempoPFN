@@ -66,8 +66,6 @@ def is_low_quality(
     complexity_score = lempel_ziv_complexity(binary_seq)
     normalized_complexity = complexity_score / max(1, len(binary_seq))
 
-    is_random_like = (snr_proxy < snr_threshold) and (
-        normalized_complexity > complexity_threshold
-    )
+    is_random_like = (snr_proxy < snr_threshold) and (normalized_complexity > complexity_threshold)
     is_uncorrelated = autocorr_strength < autocorr_threshold
     return bool(is_uncorrelated and is_random_like)

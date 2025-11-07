@@ -1,8 +1,6 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING
 
 import torch
 import torch.nn as nn
@@ -27,9 +25,7 @@ class GatedDeltaProductBlock(nn.Module):
         self.config = config
         self.layer_idx = layer_idx
 
-        self.attn_norm = (RMSNorm if config.fuse_norm else nn.RMSNorm)(
-            config.hidden_size, eps=config.norm_eps
-        )
+        self.attn_norm = (RMSNorm if config.fuse_norm else nn.RMSNorm)(config.hidden_size, eps=config.norm_eps)
         if config.attn is not None and layer_idx in config.attn["layers"]:
             self.attn = Attention(
                 hidden_size=config.hidden_size,
@@ -57,9 +53,7 @@ class GatedDeltaProductBlock(nn.Module):
                 num_householder=config.num_householder,
                 layer_idx=layer_idx,
             )
-        self.mlp_norm = (RMSNorm if config.fuse_norm else nn.RMSNorm)(
-            config.hidden_size, eps=config.norm_eps
-        )
+        self.mlp_norm = (RMSNorm if config.fuse_norm else nn.RMSNorm)(config.hidden_size, eps=config.norm_eps)
         self.mlp = GatedDeltaProductMLP(
             hidden_size=config.hidden_size,
             hidden_ratio=config.hidden_ratio,
@@ -71,15 +65,13 @@ class GatedDeltaProductBlock(nn.Module):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
-        past_key_values: Optional[Union[Cache, List[torch.FloatTensor]]] = None,
-        use_cache: Optional[bool] = False,
-        output_attentions: Optional[bool] = False,
-        initial_state: Optional[torch.FloatTensor] = None,
-        **kwargs: Unpack[Dict],
-    ) -> Tuple[
-        torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]
-    ]:
+        attention_mask: torch.Tensor | None = None,
+        past_key_values: Cache | list[torch.FloatTensor] | None = None,
+        use_cache: bool | None = False,
+        output_attentions: bool | None = False,
+        initial_state: torch.FloatTensor | None = None,
+        **kwargs: Unpack[dict],
+    ) -> tuple[torch.FloatTensor, tuple[torch.FloatTensor, torch.FloatTensor] | None]:
         residual = hidden_states
         hidden_states = self.attn_norm(hidden_states)
         hidden_states, attentions, past_key_values = self.attn(

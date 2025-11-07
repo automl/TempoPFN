@@ -1,7 +1,6 @@
 """Core data structures and helpers shared across GIFT-Eval modules."""
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
 
 from src.gift_eval.constants import ALL_DATASETS
 
@@ -26,14 +25,14 @@ class EvaluationItem:
     """Container for evaluation results and optional figures."""
 
     dataset_metadata: DatasetMetadata
-    metrics: Dict
-    figures: List[Tuple[object, str]]
+    metrics: dict
+    figures: list[tuple[object, str]]
 
 
-DatasetSelection = Union[List[str], Tuple[str, ...], str]
+DatasetSelection = list[str] | tuple[str, ...] | str
 
 
-def expand_datasets_arg(datasets: DatasetSelection) -> List[str]:
+def expand_datasets_arg(datasets: DatasetSelection) -> list[str]:
     """Normalize dataset selection strings to explicit lists."""
 
     if isinstance(datasets, str):
@@ -60,5 +59,3 @@ __all__ = [
     "DatasetSelection",
     "expand_datasets_arg",
 ]
-
-

@@ -1,8 +1,5 @@
-from typing import List, Optional, Tuple
-
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
-
 from src.synthetic_generation.abstract_classes import AbstractTimeSeriesGenerator
 from src.synthetic_generation.generator_params import (
     StepGeneratorParams,
@@ -29,7 +26,7 @@ class StepGenerator(AbstractTimeSeriesGenerator):
         self.params = params
         self.rng = np.random.default_rng(params.global_seed)
 
-    def _select_subseries_configs(self) -> List[Tuple[SubseriesConfig, int]]:
+    def _select_subseries_configs(self) -> list[tuple[SubseriesConfig, int]]:
         """
         Select which subseries patterns to use and their lengths.
 
@@ -39,9 +36,7 @@ class StepGenerator(AbstractTimeSeriesGenerator):
             List of (config, length) tuples for each subseries.
         """
         # Determine number of subseries
-        num_subseries = self.rng.integers(
-            self.params.min_subseries, self.params.max_subseries + 1
-        )
+        num_subseries = self.rng.integers(self.params.min_subseries, self.params.max_subseries + 1)
 
         # Calculate weights for pattern selection
         configs = self.params.subseries_configs
@@ -63,9 +58,7 @@ class StepGenerator(AbstractTimeSeriesGenerator):
                 length = remaining_length
             else:
                 # Sample length from range, but ensure we don't exceed remaining
-                min_length = min(
-                    config.length_range[0], remaining_length // (num_subseries - i)
-                )
+                min_length = min(config.length_range[0], remaining_length // (num_subseries - i))
                 max_length = min(
                     config.length_range[1],
                     remaining_length - (num_subseries - i - 1) * 50,
@@ -79,9 +72,7 @@ class StepGenerator(AbstractTimeSeriesGenerator):
 
         return selected_configs
 
-    def _generate_changepoints_for_pattern(
-        self, config: SubseriesConfig, length: int
-    ) -> np.ndarray:
+    def _generate_changepoints_for_pattern(self, config: SubseriesConfig, length: int) -> np.ndarray:
         """
         Generate changepoints for a specific pattern type.
 
@@ -97,9 +88,7 @@ class StepGenerator(AbstractTimeSeriesGenerator):
         np.ndarray
             Array of changepoint positions
         """
-        num_changepoints = self.rng.integers(
-            config.num_changepoints_range[0], config.num_changepoints_range[1] + 1
-        )
+        num_changepoints = self.rng.integers(config.num_changepoints_range[0], config.num_changepoints_range[1] + 1)
 
         if num_changepoints == 0:
             return np.array([])
@@ -123,13 +112,9 @@ class StepGenerator(AbstractTimeSeriesGenerator):
             StepPatternType.GRADUAL_DECREASE,
         ]:
             # More evenly distributed
-            changepoints = np.linspace(
-                length // 10, 9 * length // 10, num_changepoints
-            ).astype(int)
+            changepoints = np.linspace(length // 10, 9 * length // 10, num_changepoints).astype(int)
             # Add some randomness
-            noise = self.rng.integers(
-                -min_spacing, min_spacing + 1, size=num_changepoints
-            )
+            noise = self.rng.integers(-min_spacing, min_spacing + 1, size=num_changepoints)
             changepoints = np.clip(changepoints + noise, 0, length - 1)
 
         elif config.pattern_type in [
@@ -142,16 +127,12 @@ class StepGenerator(AbstractTimeSeriesGenerator):
             num_rest = num_changepoints - num_first_third
 
             if num_first_third > 0:
-                changepoints_first = np.linspace(
-                    length // 20, first_third, num_first_third
-                ).astype(int)
+                changepoints_first = np.linspace(length // 20, first_third, num_first_third).astype(int)
             else:
                 changepoints_first = np.array([])
 
             if num_rest > 0:
-                changepoints_rest = np.linspace(
-                    first_third + 1, 9 * length // 10, num_rest
-                ).astype(int)
+                changepoints_rest = np.linspace(first_third + 1, 9 * length // 10, num_rest).astype(int)
             else:
                 changepoints_rest = np.array([])
 
@@ -159,9 +140,7 @@ class StepGenerator(AbstractTimeSeriesGenerator):
 
         elif config.pattern_type == StepPatternType.OSCILLATING:
             # Regular spacing
-            changepoints = np.linspace(
-                length // 10, 9 * length // 10, num_changepoints
-            ).astype(int)
+            changepoints = np.linspace(length // 10, 9 * length // 10, num_changepoints).astype(int)
 
         else:  # RANDOM_WALK
             # Random distribution
@@ -173,9 +152,7 @@ class StepGenerator(AbstractTimeSeriesGenerator):
 
         return np.sort(changepoints)
 
-    def _generate_step_sizes_for_pattern(
-        self, config: SubseriesConfig, num_changepoints: int
-    ) -> np.ndarray:
+    def _generate_step_sizes_for_pattern(self, config: SubseriesConfig, num_changepoints: int) -> np.ndarray:
         """
         Generate step sizes for a specific pattern type.
 
@@ -195,9 +172,7 @@ class StepGenerator(AbstractTimeSeriesGenerator):
             return np.array([])
 
         # Generate base step sizes
-        step_sizes = self.rng.uniform(
-            config.step_size_range[0], config.step_size_range[1], num_changepoints
-        )
+        step_sizes = self.rng.uniform(config.step_size_range[0], config.step_size_range[1], num_changepoints)
 
         if config.pattern_type == StepPatternType.STABLE:
             # Very small steps
@@ -207,9 +182,7 @@ class StepGenerator(AbstractTimeSeriesGenerator):
             # All positive steps with optional decay
             step_sizes = np.abs(step_sizes)
             if config.step_size_decay != 1.0:
-                decay_factors = np.power(
-                    config.step_size_decay, np.arange(num_changepoints)
-                )
+                decay_factors = np.power(config.step_size_decay, np.arange(num_changepoints))
                 step_sizes = step_sizes * decay_factors
             return step_sizes
 
@@ -217,9 +190,7 @@ class StepGenerator(AbstractTimeSeriesGenerator):
             # All negative steps with optional decay
             step_sizes = -np.abs(step_sizes)
             if config.step_size_decay != 1.0:
-                decay_factors = np.power(
-                    config.step_size_decay, np.arange(num_changepoints)
-                )
+                decay_factors = np.power(config.step_size_decay, np.arange(num_changepoints))
                 step_sizes = step_sizes * decay_factors
             return step_sizes
 
@@ -231,9 +202,7 @@ class StepGenerator(AbstractTimeSeriesGenerator):
 
             # Apply decay
             if config.step_size_decay != 1.0:
-                decay_factors = np.power(
-                    config.step_size_decay, np.arange(num_changepoints)
-                )
+                decay_factors = np.power(config.step_size_decay, np.arange(num_changepoints))
                 step_sizes = step_sizes * decay_factors
             return step_sizes
 
@@ -245,9 +214,7 @@ class StepGenerator(AbstractTimeSeriesGenerator):
 
             # Apply decay
             if config.step_size_decay != 1.0:
-                decay_factors = np.power(
-                    config.step_size_decay, np.arange(num_changepoints)
-                )
+                decay_factors = np.power(config.step_size_decay, np.arange(num_changepoints))
                 step_sizes = step_sizes * decay_factors
             return step_sizes
 
@@ -260,9 +227,7 @@ class StepGenerator(AbstractTimeSeriesGenerator):
         else:  # RANDOM_WALK
             return step_sizes
 
-    def _generate_subseries(
-        self, config: SubseriesConfig, length: int, start_level: float
-    ) -> np.ndarray:
+    def _generate_subseries(self, config: SubseriesConfig, length: int, start_level: float) -> np.ndarray:
         """
         Generate a single subseries with the specified pattern.
 
@@ -289,15 +254,13 @@ class StepGenerator(AbstractTimeSeriesGenerator):
 
         # Apply steps
         current_level = start_level
-        for changepoint, step_size in zip(changepoints, step_sizes):
+        for changepoint, step_size in zip(changepoints, step_sizes, strict=True):
             current_level += step_size
             subseries[changepoint:] = current_level
 
         # Apply level drift if specified
         if config.level_drift_range[0] != 0 or config.level_drift_range[1] != 0:
-            drift = self.rng.uniform(
-                config.level_drift_range[0], config.level_drift_range[1]
-            )
+            drift = self.rng.uniform(config.level_drift_range[0], config.level_drift_range[1])
             drift_array = np.linspace(0, drift, length)
             subseries += drift_array
 
@@ -316,9 +279,7 @@ class StepGenerator(AbstractTimeSeriesGenerator):
         subseries_configs = self._select_subseries_configs()
 
         # Generate base level
-        base_level = self.rng.uniform(
-            self.params.base_level_range[0], self.params.base_level_range[1]
-        )
+        base_level = self.rng.uniform(self.params.base_level_range[0], self.params.base_level_range[1])
 
         # Generate subseries
         combined_series = []
@@ -329,19 +290,11 @@ class StepGenerator(AbstractTimeSeriesGenerator):
             subseries = self._generate_subseries(config, length, current_level)
 
             # Ensure level continuity if required
-            if (
-                self.params.maintain_level_continuity
-                and len(combined_series) > 0
-                and len(subseries) > 0
-            ):
+            if self.params.maintain_level_continuity and len(combined_series) > 0 and len(subseries) > 0:
                 level_diff = subseries[0] - current_level
                 if abs(level_diff) > self.params.max_level_jump_between_subseries:
                     # Adjust subseries to maintain continuity
-                    adjustment = (
-                        level_diff
-                        - np.sign(level_diff)
-                        * self.params.max_level_jump_between_subseries
-                    )
+                    adjustment = level_diff - np.sign(level_diff) * self.params.max_level_jump_between_subseries
                     subseries -= adjustment
 
             combined_series.append(subseries)
@@ -355,15 +308,13 @@ class StepGenerator(AbstractTimeSeriesGenerator):
             # Find transition points
             transition_points = []
             cumulative_length = 0
-            for config, length in subseries_configs[:-1]:  # Exclude last
+            for _, length in subseries_configs[:-1]:  # Exclude last
                 cumulative_length += length
                 transition_points.append(cumulative_length)
 
             # Smooth transitions
             for transition_point in transition_points:
-                start_idx = max(
-                    0, transition_point - self.params.transition_length // 2
-                )
+                start_idx = max(0, transition_point - self.params.transition_length // 2)
                 end_idx = min(
                     len(combined_series),
                     transition_point + self.params.transition_length // 2,
@@ -381,14 +332,12 @@ class StepGenerator(AbstractTimeSeriesGenerator):
             combined_series = combined_series[: self.params.length]
         elif len(combined_series) < self.params.length:
             # Pad with the last value
-            padding = np.full(
-                self.params.length - len(combined_series), combined_series[-1]
-            )
+            padding = np.full(self.params.length - len(combined_series), combined_series[-1])
             combined_series = np.concatenate([combined_series, padding])
 
         return combined_series
 
-    def generate_time_series(self, random_seed: Optional[int] = None) -> np.ndarray:
+    def generate_time_series(self, random_seed: int | None = None) -> np.ndarray:
         """
         Generate a single step function time series.
 
@@ -410,9 +359,7 @@ class StepGenerator(AbstractTimeSeriesGenerator):
 
         # Add noise
         if self.params.noise_level_range[0] > 0 or self.params.noise_level_range[1] > 0:
-            noise_level = self.rng.uniform(
-                self.params.noise_level_range[0], self.params.noise_level_range[1]
-            )
+            noise_level = self.rng.uniform(self.params.noise_level_range[0], self.params.noise_level_range[1])
             noise = self.rng.normal(0, noise_level, size=len(step_function))
             step_function += noise
 
@@ -426,9 +373,7 @@ class StepGenerator(AbstractTimeSeriesGenerator):
                 )
                 daily_period = 288  # 5-minute intervals in a day
                 t = np.arange(len(step_function))
-                daily_seasonality = daily_amplitude * np.sin(
-                    2 * np.pi * t / daily_period
-                )
+                daily_seasonality = daily_amplitude * np.sin(2 * np.pi * t / daily_period)
                 step_function += daily_seasonality
 
             # Weekly seasonality
@@ -439,30 +384,22 @@ class StepGenerator(AbstractTimeSeriesGenerator):
                 )
                 weekly_period = 288 * 7  # 7 days
                 t = np.arange(len(step_function))
-                weekly_seasonality = weekly_amplitude * np.sin(
-                    2 * np.pi * t / weekly_period
-                )
+                weekly_seasonality = weekly_amplitude * np.sin(2 * np.pi * t / weekly_period)
                 step_function += weekly_seasonality
 
         # Add trend if enabled
         if self.params.add_trend:
-            slope = self.rng.uniform(
-                self.params.trend_slope_range[0], self.params.trend_slope_range[1]
-            )
+            slope = self.rng.uniform(self.params.trend_slope_range[0], self.params.trend_slope_range[1])
             trend = slope * np.arange(len(step_function))
             step_function += trend
 
         # Scale the signal
-        scale_factor = self.rng.uniform(
-            self.params.scale_range[0], self.params.scale_range[1]
-        )
+        scale_factor = self.rng.uniform(self.params.scale_range[0], self.params.scale_range[1])
         step_function *= scale_factor
 
         # Inject anomalies if enabled
         if self.params.inject_anomalies:
-            anomaly_indicators = (
-                self.rng.random(len(step_function)) < self.params.anomaly_probability
-            )
+            anomaly_indicators = self.rng.random(len(step_function)) < self.params.anomaly_probability
             anomaly_magnitudes = self.rng.uniform(
                 self.params.anomaly_magnitude_range[0],
                 self.params.anomaly_magnitude_range[1],

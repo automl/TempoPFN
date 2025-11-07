@@ -1,8 +1,5 @@
-from typing import Optional
-
 import numpy as np
 from pyo import Biquad, BrownNoise, Mix
-
 from src.synthetic_generation.abstract_classes import AbstractTimeSeriesGenerator
 from src.synthetic_generation.audio_generators.utils import (
     normalize_waveform,
@@ -27,7 +24,7 @@ class MultiScaleFractalAudioGenerator(AbstractTimeSeriesGenerator):
         scale_freq_base_range: tuple[float, float],
         q_factor_range: tuple[float, float],
         per_scale_attenuation_range: tuple[float, float],
-        random_seed: Optional[int] = None,
+        random_seed: int | None = None,
     ):
         self.length = length
         self.server_duration = server_duration
@@ -46,9 +43,7 @@ class MultiScaleFractalAudioGenerator(AbstractTimeSeriesGenerator):
         base_mul = self.rng.uniform(*self.base_noise_mul_range)
         base = BrownNoise(mul=base_mul)
 
-        num_scales = int(
-            self.rng.integers(self.num_scales_range[0], self.num_scales_range[1] + 1)
-        )
+        num_scales = int(self.rng.integers(self.num_scales_range[0], self.num_scales_range[1] + 1))
 
         scales = []
         for i in range(num_scales):
@@ -60,7 +55,7 @@ class MultiScaleFractalAudioGenerator(AbstractTimeSeriesGenerator):
 
         return Mix(scales, voices=1)
 
-    def generate_time_series(self, random_seed: Optional[int] = None) -> np.ndarray:
+    def generate_time_series(self, random_seed: int | None = None) -> np.ndarray:
         if random_seed is not None:
             self.rng = np.random.default_rng(random_seed)
 

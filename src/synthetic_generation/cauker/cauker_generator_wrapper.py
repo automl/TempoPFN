@@ -1,7 +1,6 @@
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
-
 from src.data.containers import TimeSeriesContainer
 from src.synthetic_generation.abstract_classes import GeneratorWrapper
 from src.synthetic_generation.cauker.cauker_generator import CauKerGenerator
@@ -17,7 +16,7 @@ class CauKerGeneratorWrapper(GeneratorWrapper):
         super().__init__(params)
         self.params: CauKerGeneratorParams = params
 
-    def _sample_parameters(self, batch_size: int) -> Dict[str, Any]:
+    def _sample_parameters(self, batch_size: int) -> dict[str, Any]:
         params = super()._sample_parameters(batch_size)
         # Resolve num_channels if range is given: sample once per batch for consistency
         desired_channels = self.params.num_channels
@@ -41,9 +40,7 @@ class CauKerGeneratorWrapper(GeneratorWrapper):
         )
         return params
 
-    def generate_batch(
-        self, batch_size: int, seed: Optional[int] = None
-    ) -> TimeSeriesContainer:
+    def generate_batch(self, batch_size: int, seed: int | None = None) -> TimeSeriesContainer:
         # Establish a base seed to ensure different series use different seeds
         base_seed = seed if seed is not None else self.params.global_seed
         self._set_random_seeds(base_seed)

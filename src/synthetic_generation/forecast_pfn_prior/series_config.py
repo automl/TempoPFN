@@ -31,4 +31,10 @@ class SeriesConfig:
     noise_config: ComponentNoise
 
     def __str__(self):
-        return f"L{1000 * self.scale.linear:+02.0f}E{10000 * (self.scale.exp - 1):+02.0f}A{100 * self.scale.a:02.0f}M{100 * self.scale.m:02.0f}W{100 * self.scale.w:02.0f}"
+        return (
+            f"L{1000 * self.scale.linear:+02.0f}"
+            f"E{10000 * (self.scale.exp - 1):+02.0f}"
+            f"A{100 * self.scale.a:02.0f}"
+            f"M{100 * self.scale.m:02.0f}"
+            f"W{100 * self.scale.w:02.0f}"
+        )

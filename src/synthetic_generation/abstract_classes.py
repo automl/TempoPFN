@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 import torch
@@ -18,7 +18,7 @@ class AbstractTimeSeriesGenerator(ABC):
     """
 
     @abstractmethod
-    def generate_time_series(self, random_seed: Optional[int] = None) -> np.ndarray:
+    def generate_time_series(self, random_seed: int | None = None) -> np.ndarray:
         """
         Generate synthetic time series data.
 
@@ -64,7 +64,7 @@ class GeneratorWrapper:
         np.random.seed(seed)
         torch.manual_seed(seed)
 
-    def _sample_parameters(self, batch_size: int) -> Dict[str, Any]:
+    def _sample_parameters(self, batch_size: int) -> dict[str, Any]:
         """
         Sample parameters with total_length fixed and history_length calculated.
 
@@ -76,14 +76,8 @@ class GeneratorWrapper:
         """
 
         # Select a suitable frequency based on the total length
-        frequency = [
-            select_safe_random_frequency(self.params.length, self.rng)
-            for _ in range(batch_size)
-        ]
-        start = [
-            select_safe_start_date(self.params.length, frequency[i], self.rng)
-            for i in range(batch_size)
-        ]
+        frequency = [select_safe_random_frequency(self.params.length, self.rng) for _ in range(batch_size)]
+        start = [select_safe_start_date(self.params.length, frequency[i], self.rng) for i in range(batch_size)]
 
         return {
             "frequency": frequency,
@@ -91,7 +85,5 @@ class GeneratorWrapper:
         }
 
     @abstractmethod
-    def generate_batch(
-        self, batch_size: int, seed: Optional[int] = None, **kwargs
-    ) -> TimeSeriesContainer:
+    def generate_batch(self, batch_size: int, seed: int | None = None, **kwargs) -> TimeSeriesContainer:
         raise NotImplementedError("Subclasses must implement generate_batch()")

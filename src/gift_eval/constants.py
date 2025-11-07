@@ -16,7 +16,6 @@ from gluonts.ev.metrics import (
     MeanWeightedSumQuantileLoss,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -30,7 +29,7 @@ DATASET_PROPERTIES_PATH = _MODULE_DIR / "data" / "dataset_properties.json"
 
 
 try:
-    with open(DATASET_PROPERTIES_PATH, "r") as f:
+    with open(DATASET_PROPERTIES_PATH) as f:
         DATASET_PROPERTIES = json.load(f)
 except Exception as exc:  # pragma: no cover - logging path
     DATASET_PROPERTIES = {}
@@ -152,9 +151,7 @@ METRICS = (
     RMSE(),
     NRMSE(),
     ND(),
-    MeanWeightedSumQuantileLoss(
-        quantile_levels=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-    ),
+    MeanWeightedSumQuantileLoss(quantile_levels=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]),
 )
 
 

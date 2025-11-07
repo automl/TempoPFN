@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -13,8 +12,8 @@ class GeneratorParams:
 
     global_seed: int = 42
     length: int = 2048
-    frequency: Optional[List[Frequency]] = None
-    start: Optional[List[np.datetime64]] = None
+    frequency: list[Frequency] | None = None
+    start: list[np.datetime64] | None = None
 
     def update(self, **kwargs):
         """Update parameters from keyword arguments."""
@@ -28,15 +27,13 @@ class ForecastPFNGeneratorParams(GeneratorParams):
     """Parameters for the ForecastPFNGenerator."""
 
     trend_exp: bool = True
-    scale_noise: Tuple[float, float] = (0.6, 0.3)
+    scale_noise: tuple[float, float] = (0.6, 0.3)
     harmonic_scale_ratio: float = 0.5
     harmonic_rate: float = 1.0
     period_factor: float = 1.0
     seasonal_only: bool = False
     trend_additional: bool = True
-    transition_ratio: float = (
-        1.0  # Probability of applying transition between two series
-    )
+    transition_ratio: float = 1.0  # Probability of applying transition between two series
     random_walk: bool = False
 
     # Multivariate augmentation parameters (applied in wrapper)
@@ -52,7 +49,7 @@ class ForecastPFNGeneratorParams(GeneratorParams):
     time_warp_prob: float = 0.1  # Probability of applying time warping
     time_warp_strength: float = 0.05  # Strength of time warping effect
     magnitude_scale_prob: float = 0.2  # Probability of applying magnitude scaling
-    magnitude_scale_range: Tuple[float, float] = (
+    magnitude_scale_range: tuple[float, float] = (
         0.9,
         1.1,
     )  # Range for magnitude scaling
@@ -61,9 +58,7 @@ class ForecastPFNGeneratorParams(GeneratorParams):
     pure_spike_prob: float = 0.02  # Probability of replacing with pure spike signal
 
     # Built-in filtering parameters
-    max_absolute_spread: float = (
-        300.0  # Maximum allowed spread (max - min) for generated series
-    )
+    max_absolute_spread: float = 300.0  # Maximum allowed spread (max - min) for generated series
     max_absolute_value: float = 300.0
     max_retries: int = 10
 
@@ -84,8 +79,8 @@ class GPGeneratorParams(GeneratorParams):
     periods_per_freq: float = 0.5
     gaussian_sampling_ratio: float = 0.2
     max_period_ratio: float = 0.5
-    kernel_periods: Tuple[int, ...] = (4, 5, 7, 21, 24, 30, 60, 120)
-    kernel_bank: Dict[str, float] = field(
+    kernel_periods: tuple[int, ...] = (4, 5, 7, 21, 24, 30, 60, 120)
+    kernel_bank: dict[str, float] = field(
         default_factory=lambda: {
             "matern_kernel": 1.5,
             "linear_kernel": 1.0,
@@ -108,26 +103,18 @@ class SineWaveGeneratorParams(GeneratorParams):
     """Parameters for the SineWaveGenerator - focused on diverse sinusoidal patterns."""
 
     # Core sinusoidal parameters
-    num_components_range: Tuple[int, int] = (1, 3)
-    period_range: Union[
-        Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
-    ] = (10.0, 200.0)
-    amplitude_range: Union[
-        Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
-    ] = (0.5, 3.0)
-    phase_range: Union[
-        Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
-    ] = (0.0, 2.0 * np.pi)
+    num_components_range: tuple[int, int] = (1, 3)
+    period_range: tuple[float, float] | tuple[tuple[float, float], tuple[float, float]] = (10.0, 200.0)
+    amplitude_range: tuple[float, float] | tuple[tuple[float, float], tuple[float, float]] = (0.5, 3.0)
+    phase_range: tuple[float, float] | tuple[tuple[float, float], tuple[float, float]] = (0.0, 2.0 * np.pi)
 
     # Trend parameters
-    trend_slope_range: Tuple[float, float] = (-0.01, 0.01)
-    base_level_range: Tuple[float, float] = (0.0, 2.0)
+    trend_slope_range: tuple[float, float] = (-0.01, 0.01)
+    base_level_range: tuple[float, float] = (0.0, 2.0)
 
     # Noise parameters
-    noise_probability: float = (
-        0.7  # Probability of adding noise (70% of series have noise)
-    )
-    noise_level_range: Tuple[float, float] = (
+    noise_probability: float = 0.7  # Probability of adding noise (70% of series have noise)
+    noise_level_range: tuple[float, float] = (
         0.05,
         0.2,
     )  # Small noise as fraction of amplitude (when noise is applied)
@@ -143,19 +130,20 @@ class SineWaveGeneratorParams(GeneratorParams):
 class SawToothGeneratorParams(GeneratorParams):
     """Parameters for the SawToothGenerator."""
 
-    periods: Tuple[int, int] = (2, 7)  # Number of sawtooth periods in the series
-    amplitude_range: Union[
-        Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
-    ] = (0.5, 3.0)
-    phase_range: Union[
-        Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
-    ] = (0.0, 1.0)  # Phase shift as fraction of period
-    trend_slope_range: Union[
-        Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
-    ] = (-0.001, 0.001)  # Slightly stronger linear trend slope for more straight lines
-    seasonality_amplitude_range: Union[
-        Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
-    ] = (0.0, 0.02)  # Minimal seasonal component amplitude
+    periods: tuple[int, int] = (2, 7)  # Number of sawtooth periods in the series
+    amplitude_range: tuple[float, float] | tuple[tuple[float, float], tuple[float, float]] = (0.5, 3.0)
+    phase_range: tuple[float, float] | tuple[tuple[float, float], tuple[float, float]] = (
+        0.0,
+        1.0,
+    )  # Phase shift as fraction of period
+    trend_slope_range: tuple[float, float] | tuple[tuple[float, float], tuple[float, float]] = (
+        -0.001,
+        0.001,
+    )  # Slightly stronger linear trend slope for more straight lines
+    seasonality_amplitude_range: tuple[float, float] | tuple[tuple[float, float], tuple[float, float]] = (
+        0.0,
+        0.02,
+    )  # Minimal seasonal component amplitude
     add_trend: bool = True  # Whether to add linear trend
     add_seasonality: bool = True  # Whether to add seasonal component
 
@@ -177,10 +165,10 @@ class SubseriesConfig:
     """Configuration for a single subseries pattern."""
 
     pattern_type: StepPatternType
-    length_range: Tuple[int, int]  # Min and max length for this subseries
-    num_changepoints_range: Tuple[int, int]  # Number of changepoints in this subseries
-    step_size_range: Tuple[float, float]  # Step size range for this pattern
-    level_drift_range: Tuple[float, float] = (0.0, 0.0)  # Overall level drift
+    length_range: tuple[int, int]  # Min and max length for this subseries
+    num_changepoints_range: tuple[int, int]  # Number of changepoints in this subseries
+    step_size_range: tuple[float, float]  # Step size range for this pattern
+    level_drift_range: tuple[float, float] = (0.0, 0.0)  # Overall level drift
     step_size_decay: float = 1.0  # Decay factor for step sizes over time
     weight: float = 1.0  # Probability weight for selecting this pattern
 
@@ -190,7 +178,7 @@ class StepGeneratorParams(GeneratorParams):
     """Parameters for the StepGenerator with subseries support."""
 
     # Subseries configuration
-    subseries_configs: List[SubseriesConfig] = field(
+    subseries_configs: list[SubseriesConfig] = field(
         default_factory=lambda: [
             # Stable beginning (20-30% of series)
             SubseriesConfig(
@@ -264,25 +252,25 @@ class StepGeneratorParams(GeneratorParams):
     transition_length: int = 5
 
     # Base level and global parameters
-    base_level_range: Tuple[float, float] = (5.0, 15.0)
-    noise_level_range: Tuple[float, float] = (0.001, 0.01)
+    base_level_range: tuple[float, float] = (5.0, 15.0)
+    noise_level_range: tuple[float, float] = (0.001, 0.01)
 
     # Seasonal component parameters
     add_seasonality: bool = True
-    daily_seasonality_amplitude_range: Tuple[float, float] = (0.0, 0.8)
-    weekly_seasonality_amplitude_range: Tuple[float, float] = (0.0, 0.7)
+    daily_seasonality_amplitude_range: tuple[float, float] = (0.0, 0.8)
+    weekly_seasonality_amplitude_range: tuple[float, float] = (0.0, 0.7)
 
     # Trend parameters
     add_trend: bool = False
-    trend_slope_range: Tuple[float, float] = (-0.005, 0.005)
+    trend_slope_range: tuple[float, float] = (-0.005, 0.005)
 
     # Scaling parameters
-    scale_range: Tuple[float, float] = (0.1, 10.0)
+    scale_range: tuple[float, float] = (0.1, 10.0)
 
     # Anomaly injection parameters
     inject_anomalies: bool = False
     anomaly_probability: float = 0.02
-    anomaly_magnitude_range: Tuple[float, float] = (2.0, 5.0)
+    anomaly_magnitude_range: tuple[float, float] = (2.0, 5.0)
 
     # Level continuity between subseries
     maintain_level_continuity: bool = True
@@ -311,30 +299,26 @@ class AnomalyGeneratorParams(GeneratorParams):
     """Parameters for anomaly time series generation."""
 
     # Base signal parameters
-    base_level_range: Tuple[float, float] = (-100.0, 100.0)
+    base_level_range: tuple[float, float] = (-100.0, 100.0)
 
     # Spike direction (50% up-only, 50% down-only series)
-    spike_direction_probability: float = (
-        0.5  # Probability of up-only vs down-only series
-    )
+    spike_direction_probability: float = 0.5  # Probability of up-only vs down-only series
 
     # Periodicity parameters (uniform singles are always generated; variance/jitter ignored for base schedule)
-    base_period_range: Tuple[int, int] = (100, 300)  # Base period between spike events
+    base_period_range: tuple[int, int] = (100, 300)  # Base period between spike events
     period_variance: float = 0.0  # Not used for base schedule anymore
 
     # Series-level behavior probabilities
-    cluster_series_probability: float = (
-        0.25  # 25% of series add clusters near base spikes
-    )
+    cluster_series_probability: float = 0.25  # 25% of series add clusters near base spikes
     random_series_probability: float = 0.25  # 25% of series add random single spikes
 
     # Cluster augmentation parameters (relative to base uniform spikes)
     # Fraction of base spike events that will receive nearby extra spikes
     cluster_event_fraction: float = 0.3
     # Number of additional spikes to add per selected event (upper bound exclusive like np.random.randint)
-    cluster_additional_spikes_range: Tuple[int, int] = (1, 4)  # yields 1..3
+    cluster_additional_spikes_range: tuple[int, int] = (1, 4)  # yields 1..3
     # Offset window (in time steps) around the base spike for additional spikes (inclusive of negatives)
-    cluster_offset_range: Tuple[int, int] = (-10, 11)  # yields [-10..10]
+    cluster_offset_range: tuple[int, int] = (-10, 11)  # yields [-10..10]
 
     # Random single spikes augmentation across the series (not tied to base events)
     # Number of random spikes as a fraction of the number of base spikes
@@ -342,17 +326,13 @@ class AnomalyGeneratorParams(GeneratorParams):
 
     # Spike magnitude parameters
     magnitude_pattern: MagnitudePattern = MagnitudePattern.RANDOM_BOUNDED
-    base_magnitude_range: Tuple[float, float] = (10.0, 50.0)
-    magnitude_correlation: float = (
-        0.7  # Correlation between consecutive spike magnitudes (0-1)
-    )
+    base_magnitude_range: tuple[float, float] = (10.0, 50.0)
+    magnitude_correlation: float = 0.7  # Correlation between consecutive spike magnitudes (0-1)
     magnitude_trend_strength: float = 0.02  # Strength of increasing/decreasing trend
     cyclical_period_ratio: float = 0.3  # Ratio of cyclical period to series length
 
     # Noise parameters
-    magnitude_noise: float = (
-        0.1  # Random noise added to magnitude (as fraction of base magnitude)
-    )
+    magnitude_noise: float = 0.1  # Random noise added to magnitude (as fraction of base magnitude)
     timing_jitter: float = 0.0  # Not used for base schedule anymore
 
     def __post_init__(self):
@@ -371,16 +351,11 @@ class AnomalyGeneratorParams(GeneratorParams):
         if not (0.0 <= self.random_series_probability <= 1.0):
             raise ValueError("random_series_probability must be between 0 and 1")
         if self.cluster_series_probability + self.random_series_probability > 1.0:
-            raise ValueError(
-                "Sum of cluster_series_probability and random_series_probability must be <= 1"
-            )
+            raise ValueError("Sum of cluster_series_probability and random_series_probability must be <= 1")
         # Validate cluster augmentation
         if not (0.0 <= self.cluster_event_fraction <= 1.0):
             raise ValueError("cluster_event_fraction must be between 0 and 1")
-        if (
-            self.cluster_additional_spikes_range[0]
-            >= self.cluster_additional_spikes_range[1]
-        ):
+        if self.cluster_additional_spikes_range[0] >= self.cluster_additional_spikes_range[1]:
             raise ValueError("cluster_additional_spikes_range must have min < max")
         if self.cluster_offset_range[0] >= self.cluster_offset_range[1]:
             raise ValueError("cluster_offset_range must have min < max")
@@ -403,26 +378,26 @@ class SpikesGeneratorParams(GeneratorParams):
     """Parameters for spike time series generation."""
 
     # Separate spike counts for different modes
-    spike_count_burst: Tuple[int, int] = (2, 4)
-    spike_count_uniform: Tuple[int, int] = (4, 7)
+    spike_count_burst: tuple[int, int] = (2, 4)
+    spike_count_uniform: tuple[int, int] = (4, 7)
 
     # Spike amplitude parameters (absolute values, sign determined per series)
-    spike_amplitude: Union[float, Tuple[float, float]] = (50.0, 300.0)
+    spike_amplitude: float | tuple[float, float] = (50.0, 300.0)
 
     # Spike angle range in degrees (controls steepness) - sampled once per series
-    spike_angle_range: Tuple[float, float] = (70.0, 85.0)
+    spike_angle_range: tuple[float, float] = (70.0, 85.0)
 
     # Probability of burst mode vs spread mode (5% burst, 95% spread)
     burst_mode_probability: float = 0.05
 
     # Plateau duration for chopped spikes (in time steps)
-    plateau_duration: Tuple[int, int] = (30, 50)
+    plateau_duration: tuple[int, int] = (30, 50)
 
     # Baseline value (should be close to zero)
-    baseline: Union[float, Tuple[float, float]] = (-200, 200)
+    baseline: float | tuple[float, float] = (-200, 200)
 
     # Burst clustering parameters - fraction of series length for burst width
-    burst_width_fraction: Tuple[float, float] = (0.1, 0.25)
+    burst_width_fraction: tuple[float, float] = (0.1, 0.25)
 
     # Spread mode edge margin ratio: edges are set to this fraction of the
     # inter-spike spacing. Smaller values yield smaller left/right margins and
@@ -434,7 +409,7 @@ class SpikesGeneratorParams(GeneratorParams):
     spikes_above_baseline_probability: float = 0.5
 
     # Probability of each series type
-    series_type_probabilities: Dict[str, float] = field(
+    series_type_probabilities: dict[str, float] = field(
         default_factory=lambda: {
             "v_only": 0.4,
             "chopped_only": 0.3,
@@ -464,7 +439,7 @@ class CauKerGeneratorParams(GeneratorParams):
 
     # Number of channels (features) to sample per series. If a tuple(range)
     # or list is provided, the wrapper will pick a single value for the whole batch.
-    num_channels: Union[int, Tuple[int, int], List[int]] = 6
+    num_channels: int | tuple[int, int] | list[int] = 6
 
     # Maximum number of parents per node in the DAG
     max_parents: int = 3
@@ -492,43 +467,43 @@ class TrendConfig:
     trend_type: TrendType = TrendType.NONE
 
     # Linear trend parameters
-    linear_slope_range: Tuple[float, float] = (-0.01, 0.01)
+    linear_slope_range: tuple[float, float] = (-0.01, 0.01)
 
     # Exponential trend parameters
-    exp_rate_range: Tuple[float, float] = (-0.005, 0.005)
-    exp_asymptote_range: Tuple[float, float] = (-5.0, 5.0)
+    exp_rate_range: tuple[float, float] = (-0.005, 0.005)
+    exp_asymptote_range: tuple[float, float] = (-5.0, 5.0)
 
     # Logistic trend parameters
-    logistic_growth_rate_range: Tuple[float, float] = (0.01, 0.1)
-    logistic_capacity_range: Tuple[float, float] = (5.0, 20.0)
-    logistic_midpoint_ratio_range: Tuple[float, float] = (
+    logistic_growth_rate_range: tuple[float, float] = (0.01, 0.1)
+    logistic_capacity_range: tuple[float, float] = (5.0, 20.0)
+    logistic_midpoint_ratio_range: tuple[float, float] = (
         0.3,
         0.7,
     )  # As fraction of series length
 
     # Sinusoidal trend parameters
-    sin_amplitude_range: Tuple[float, float] = (1.0, 5.0)
-    sin_period_ratio_range: Tuple[float, float] = (
+    sin_amplitude_range: tuple[float, float] = (1.0, 5.0)
+    sin_period_ratio_range: tuple[float, float] = (
         0.1,
         0.5,
     )  # As fraction of series length
-    sin_phase_range: Tuple[float, float] = (0.0, 2.0 * np.pi)
+    sin_phase_range: tuple[float, float] = (0.0, 2.0 * np.pi)
 
     # Piecewise linear parameters
-    num_segments_range: Tuple[int, int] = (2, 5)
-    segment_slope_range: Tuple[float, float] = (-0.02, 0.02)
+    num_segments_range: tuple[int, int] = (2, 5)
+    segment_slope_range: tuple[float, float] = (-0.02, 0.02)
 
     # Polynomial trend parameters
-    poly_degree_range: Tuple[int, int] = (2, 3)
-    poly_coeff_range: Tuple[float, float] = (
+    poly_degree_range: tuple[int, int] = (2, 3)
+    poly_coeff_range: tuple[float, float] = (
         -1e-6,
         1e-6,
     )  # Small coefficients for stability
 
     # Structural change parameters
     enable_structural_changes: bool = True
-    num_structural_changes_range: Tuple[int, int] = (0, 3)
-    structural_change_magnitude_range: Tuple[float, float] = (1.0, 5.0)
+    num_structural_changes_range: tuple[int, int] = (0, 3)
+    structural_change_magnitude_range: tuple[float, float] = (1.0, 5.0)
     min_segment_length: int = 200  # Minimum length between structural changes
 
 
@@ -544,31 +519,31 @@ class OrnsteinUhlenbeckProcessGeneratorParams(GeneratorParams):
     dt: float = 0.01
 
     # Regime 0 parameter distributions
-    regime0_theta_range: Tuple[float, float] = (1.0, 5.0)
-    regime0_mu_mean_std: Tuple[float, float] = (-2.0, 1.0)
-    regime0_sigma_lognormal_params: Tuple[float, float] = (float(np.log(0.3)), 0.3)
+    regime0_theta_range: tuple[float, float] = (1.0, 5.0)
+    regime0_mu_mean_std: tuple[float, float] = (-2.0, 1.0)
+    regime0_sigma_lognormal_params: tuple[float, float] = (float(np.log(0.3)), 0.3)
 
     # Regime 0 volatility process parameters
-    regime0_vol_reversion_range: Tuple[float, float] = (2.0, 5.0)  # kappa_v
-    regime0_vol_mean_range: Tuple[float, float] = (0.2, 0.4)  # theta_v
-    regime0_vol_vol_range: Tuple[float, float] = (0.1, 0.3)  # xi_v
+    regime0_vol_reversion_range: tuple[float, float] = (2.0, 5.0)  # kappa_v
+    regime0_vol_mean_range: tuple[float, float] = (0.2, 0.4)  # theta_v
+    regime0_vol_vol_range: tuple[float, float] = (0.1, 0.3)  # xi_v
 
     # Regime 1 parameter distributions
-    regime1_theta_range: Tuple[float, float] = (0.05, 0.5)
-    regime1_mu_mean_std: Tuple[float, float] = (2.0, 1.0)
-    regime1_sigma_lognormal_params: Tuple[float, float] = (float(np.log(1.5)), 0.5)
+    regime1_theta_range: tuple[float, float] = (0.05, 0.5)
+    regime1_mu_mean_std: tuple[float, float] = (2.0, 1.0)
+    regime1_sigma_lognormal_params: tuple[float, float] = (float(np.log(1.5)), 0.5)
 
     # Regime 1 volatility process parameters
-    regime1_vol_reversion_range: Tuple[float, float] = (0.5, 2.0)  # kappa_v
-    regime1_vol_mean_range: Tuple[float, float] = (0.8, 1.2)  # theta_v
-    regime1_vol_vol_range: Tuple[float, float] = (0.3, 0.5)  # xi_v
+    regime1_vol_reversion_range: tuple[float, float] = (0.5, 2.0)  # kappa_v
+    regime1_vol_mean_range: tuple[float, float] = (0.8, 1.2)  # theta_v
+    regime1_vol_vol_range: tuple[float, float] = (0.3, 0.5)  # xi_v
 
     # Initial value distributions
-    x0_mean_std: Tuple[float, float] = (0.0, 2.0)
+    x0_mean_std: tuple[float, float] = (0.0, 2.0)
 
     # Transition matrix diagonal probabilities (allow more frequent regime changes)
-    p00_range: Tuple[float, float] = (0.85, 0.999)  # Allow more frequent transitions
-    p11_range: Tuple[float, float] = (0.85, 0.999)
+    p00_range: tuple[float, float] = (0.85, 0.999)  # Allow more frequent transitions
+    p11_range: tuple[float, float] = (0.85, 0.999)
 
     # Time-varying parameter support
     trend_config: TrendConfig = field(default_factory=TrendConfig)
@@ -579,46 +554,46 @@ class OrnsteinUhlenbeckProcessGeneratorParams(GeneratorParams):
     sigma_trend_probability: float = 0.3  # Occasional changes in volatility
 
     # Global scaling and level parameters for real-world applicability
-    global_level_range: Tuple[float, float] = (
+    global_level_range: tuple[float, float] = (
         -100.0,
         100.0,
     )  # Base level around which process evolves
-    global_scale_range: Tuple[float, float] = (
+    global_scale_range: tuple[float, float] = (
         0.1,
         50.0,
     )  # Scale factor for entire series
 
     # Noise injection for additional realism
-    measurement_noise_std_range: Tuple[float, float] = (
+    measurement_noise_std_range: tuple[float, float] = (
         0.0,
         0.1,
     )  # Additive measurement noise
 
     # Long-term memory parameters (for more realistic autocorrelation)
     enable_long_memory: bool = False
-    hurst_exponent_range: Tuple[float, float] = (
+    hurst_exponent_range: tuple[float, float] = (
         0.3,
         0.8,
     )  # Fractional Brownian motion component
 
     # Seasonality parameters
     enable_seasonality: bool = True
-    num_seasonal_components_range: Tuple[int, int] = (
+    num_seasonal_components_range: tuple[int, int] = (
         1,
         3,
     )  # Number of seasonal components
-    seasonal_periods: Tuple[float, ...] = (
+    seasonal_periods: tuple[float, ...] = (
         7.0,  # Weekly
         30.0,  # Monthly
         90.0,  # Quarterly
         365.25,  # Yearly
         182.625,  # Semi-annual
     )  # Available seasonal periods (in time units)
-    seasonal_amplitude_range: Tuple[float, float] = (
+    seasonal_amplitude_range: tuple[float, float] = (
         0.5,
         3.0,
     )  # Amplitude of seasonal components
-    seasonal_phase_range: Tuple[float, float] = (0.0, 2.0 * np.pi)  # Phase shift range
+    seasonal_phase_range: tuple[float, float] = (0.0, 2.0 * np.pi)  # Phase shift range
     seasonal_period_jitter: float = 0.05  # Jitter applied to periods for realism (±5%)
 
     # Probability of applying seasonality to different parameters
@@ -627,7 +602,7 @@ class OrnsteinUhlenbeckProcessGeneratorParams(GeneratorParams):
 
     # Seasonal component decay/growth over time
     enable_seasonal_evolution: bool = True
-    seasonal_amplitude_trend_range: Tuple[float, float] = (
+    seasonal_amplitude_trend_range: tuple[float, float] = (
         -0.001,
         0.001,
     )  # Trend in seasonal amplitude
@@ -671,19 +646,19 @@ class FinancialVolatilityAudioParams(AudioGeneratorParams):
     """Parameters for the FinancialVolatility audio generator."""
 
     # Trend LFO controlling slow drift
-    trend_lfo_freq_range: Tuple[float, float] = (0.1, 0.5)
-    trend_lfo_mul_range: Tuple[float, float] = (0.2, 0.5)
+    trend_lfo_freq_range: tuple[float, float] = (0.1, 0.5)
+    trend_lfo_mul_range: tuple[float, float] = (0.2, 0.5)
 
     # Volatility clustering
-    volatility_carrier_freq_range: Tuple[float, float] = (1.0, 5.0)
-    follower_freq_range: Tuple[float, float] = (1.0, 4.0)
-    volatility_range: Tuple[float, float] = (0.1, 0.8)
+    volatility_carrier_freq_range: tuple[float, float] = (1.0, 5.0)
+    follower_freq_range: tuple[float, float] = (1.0, 4.0)
+    volatility_range: tuple[float, float] = (0.1, 0.8)
 
     # Market jumps/shocks
-    jump_metro_time_range: Tuple[float, float] = (0.3, 1.0)
-    jump_env_start_range: Tuple[float, float] = (0.5, 1.0)
-    jump_env_decay_time_range: Tuple[float, float] = (0.05, 0.2)
-    jump_freq_range: Tuple[float, float] = (20.0, 80.0)
+    jump_metro_time_range: tuple[float, float] = (0.3, 1.0)
+    jump_env_start_range: tuple[float, float] = (0.5, 1.0)
+    jump_env_decay_time_range: tuple[float, float] = (0.05, 0.2)
+    jump_freq_range: tuple[float, float] = (20.0, 80.0)
     jump_direction_up_probability: float = 0.5
 
 
@@ -691,11 +666,11 @@ class FinancialVolatilityAudioParams(AudioGeneratorParams):
 class MultiScaleFractalAudioParams(AudioGeneratorParams):
     """Parameters for the Multi-Scale Fractal audio generator."""
 
-    base_noise_mul_range: Tuple[float, float] = (0.3, 0.8)
-    num_scales_range: Tuple[int, int] = (3, 6)
-    scale_freq_base_range: Tuple[float, float] = (20.0, 2000.0)
-    q_factor_range: Tuple[float, float] = (0.5, 3.0)
-    per_scale_attenuation_range: Tuple[float, float] = (
+    base_noise_mul_range: tuple[float, float] = (0.3, 0.8)
+    num_scales_range: tuple[int, int] = (3, 6)
+    scale_freq_base_range: tuple[float, float] = (20.0, 2000.0)
+    q_factor_range: tuple[float, float] = (0.5, 3.0)
+    per_scale_attenuation_range: tuple[float, float] = (
         0.5,
         0.8,
     )  # multiplier per scale index
@@ -705,13 +680,13 @@ class MultiScaleFractalAudioParams(AudioGeneratorParams):
 class StochasticRhythmAudioParams(AudioGeneratorParams):
     """Parameters for the Stochastic Rhythm audio generator."""
 
-    base_tempo_hz_range: Tuple[float, float] = (2.0, 8.0)
-    num_layers_range: Tuple[int, int] = (3, 5)
-    subdivisions: Tuple[int, ...] = (1, 2, 3, 4, 6, 8)
-    attack_range: Tuple[float, float] = (0.001, 0.01)
-    decay_range: Tuple[float, float] = (0.05, 0.3)
-    tone_freq_range: Tuple[float, float] = (50.0, 800.0)
-    tone_mul_range: Tuple[float, float] = (0.2, 0.5)
+    base_tempo_hz_range: tuple[float, float] = (2.0, 8.0)
+    num_layers_range: tuple[int, int] = (3, 5)
+    subdivisions: tuple[int, ...] = (1, 2, 3, 4, 6, 8)
+    attack_range: tuple[float, float] = (0.001, 0.01)
+    decay_range: tuple[float, float] = (0.05, 0.3)
+    tone_freq_range: tuple[float, float] = (50.0, 800.0)
+    tone_mul_range: tuple[float, float] = (0.2, 0.5)
 
 
 @dataclass
@@ -719,30 +694,28 @@ class NetworkTopologyAudioParams(AudioGeneratorParams):
     """Parameters for the Network Topology audio generator."""
 
     # Base traffic flow
-    traffic_lfo_freq_range: Tuple[float, float] = (0.2, 1.0)
-    traffic_lfo_mul_range: Tuple[float, float] = (0.2, 0.5)
+    traffic_lfo_freq_range: tuple[float, float] = (0.2, 1.0)
+    traffic_lfo_mul_range: tuple[float, float] = (0.2, 0.5)
 
     # Packet bursts
-    burst_rate_hz_range: Tuple[float, float] = (3.0, 12.0)
-    burst_duration_range: Tuple[float, float] = (0.02, 0.1)
-    burst_mul_range: Tuple[float, float] = (0.2, 0.6)
+    burst_rate_hz_range: tuple[float, float] = (3.0, 12.0)
+    burst_duration_range: tuple[float, float] = (0.02, 0.1)
+    burst_mul_range: tuple[float, float] = (0.2, 0.6)
 
     # Periodic congestion
-    congestion_period_range: Tuple[float, float] = (1.0, 3.0)  # seconds between events
-    congestion_depth_range: Tuple[float, float] = (-0.6, -0.2)
-    congestion_release_time_range: Tuple[float, float] = (0.3, 0.8)
+    congestion_period_range: tuple[float, float] = (1.0, 3.0)  # seconds between events
+    congestion_depth_range: tuple[float, float] = (-0.6, -0.2)
+    congestion_release_time_range: tuple[float, float] = (0.3, 0.8)
 
     # Protocol overhead
-    overhead_lfo_freq_range: Tuple[float, float] = (20.0, 50.0)
-    overhead_mul_range: Tuple[float, float] = (0.05, 0.15)
+    overhead_lfo_freq_range: tuple[float, float] = (20.0, 50.0)
+    overhead_mul_range: tuple[float, float] = (0.05, 0.15)
 
     # DDoS-like spikes / attacks
-    attack_period_range: Tuple[float, float] = (2.0, 5.0)
-    attack_env_points: Tuple[
-        Tuple[float, float], Tuple[float, float], Tuple[float, float]
-    ] = (
+    attack_period_range: tuple[float, float] = (2.0, 5.0)
+    attack_env_points: tuple[tuple[float, float], tuple[float, float], tuple[float, float]] = (
         (0.0, 1.2),
         (0.1, 0.8),
         (0.8, 0.0),
     )
-    attack_mul_range: Tuple[float, float] = (0.4, 0.8)
+    attack_mul_range: tuple[float, float] = (0.4, 0.8)

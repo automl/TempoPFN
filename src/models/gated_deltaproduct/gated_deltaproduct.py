@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2023-2025, Songlin Yang, Yu Zhang
 
 from __future__ import annotations
 
 import math
 import warnings
-from typing import TYPE_CHECKING, Dict, Optional, Tuple
+from typing import TYPE_CHECKING
 
 import torch
 import torch.nn as nn
@@ -70,22 +69,19 @@ class GatedDeltaProduct(nn.Module):
         self.key_dim = int(self.num_heads * self.head_k_dim)
         self.value_dim = int(self.num_v_heads * self.head_v_dim)
         self.layer_idx = layer_idx
-        self.init_hidden_state = nn.Parameter(
-            torch.randn(self.num_heads, self.head_dim, self.head_dim)
-        )
+        self.init_hidden_state = nn.Parameter(torch.randn(self.num_heads, self.head_dim, self.head_dim))
 
         # Consistency check: Ensure expand_v produces integer values
-        if not math.isclose(
-            self.num_v_heads * self.head_dim * expand_v, self.value_dim, rel_tol=1e-5
-        ):
+        if not math.isclose(self.num_v_heads * self.head_dim * expand_v, self.value_dim, rel_tol=1e-5):
             raise ValueError(
-                f"expand_v={expand_v} does not produce an integer value when multiplied by key_dim={self.key_dim}. "
-                f"Resulting value_dim would be {self.num_v_heads * self.head_dim * expand_v}, which is invalid for nn.Linear."
+                f"expand_v={expand_v} does not produce an integer value when multiplied by key_dim={self.key_dim}. "(
+                    f"Resulting value_dim would be "
+                    f"{self.num_v_heads * self.head_dim * expand_v}, "
+                    "which is invalid for nn.Linear."
+                )
             )
         if self.num_v_heads > self.num_heads and self.num_v_heads % self.num_heads != 0:
-            raise ValueError(
-                f"num_v_heads={self.num_v_heads} must be divisible by num_heads={self.num_heads}."
-            )
+            raise ValueError(f"num_v_heads={self.num_v_heads} must be divisible by num_heads={self.num_heads}.")
 
         if not math.isclose(head_dim * expand_v, self.head_v_dim, rel_tol=1e-5):
             raise ValueError(
@@ -96,12 +92,8 @@ class GatedDeltaProduct(nn.Module):
 
         self.q_proj = nn.Linear(hidden_size, self.key_dim, bias=False)
         self.k_proj = nn.Linear(hidden_size, self.key_dim * num_householder, bias=False)
-        self.v_proj = nn.Linear(
-            hidden_size, self.value_dim * num_householder, bias=False
-        )
-        self.b_proj = nn.Linear(
-            hidden_size, self.num_v_heads * num_householder, bias=False
-        )
+        self.v_proj = nn.Linear(hidden_size, self.value_dim * num_householder, bias=False)
+        self.b_proj = nn.Linear(hidden_size, self.num_v_heads * num_householder, bias=False)
 
         if self.use_forget_gate:
             self.a_proj = nn.Linear(hidden_size, self.num_v_heads, bias=False)
@@ -112,10 +104,7 @@ class GatedDeltaProduct(nn.Module):
             dt_min = 0.001
             dt_max = 0.1
             dt_init_floor = 1e-4
-            dt = torch.exp(
-                torch.rand(self.num_v_heads) * (math.log(dt_max) - math.log(dt_min))
-                + math.log(dt_min)
-            )
+            dt = torch.exp(torch.rand(self.num_v_heads) * (math.log(dt_max) - math.log(dt_min)) + math.log(dt_min))
             dt = torch.clamp(dt, min=dt_init_floor)
             # Inverse of softplus: https://github.com/pytorch/pytorch/issues/72759
             inv_dt = dt + torch.log(-torch.expm1(-dt))
@@ -168,13 +157,13 @@ class GatedDeltaProduct(nn.Module):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
-        past_key_values: Optional[Cache] = None,
-        initial_state: Optional[torch.Tensor] = None,
-        use_cache: Optional[bool] = False,
-        output_attentions: Optional[bool] = False,
-        **kwargs: Unpack[Dict],
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Cache]]:
+        attention_mask: torch.Tensor | None = None,
+        past_key_values: Cache | None = None,
+        initial_state: torch.Tensor | None = None,
+        use_cache: bool | None = False,
+        output_attentions: bool | None = False,
+        **kwargs: Unpack[dict],
+    ) -> tuple[torch.Tensor, torch.Tensor | None, Cache | None]:
         if attention_mask is not None:
             assert len(attention_mask.shape) == 2, (
                 "Expected attention_mask as a 0-1 matrix with shape [batch_size, seq_len] "
@@ -196,9 +185,7 @@ class GatedDeltaProduct(nn.Module):
         cu_seqlens = kwargs.get("cu_seqlens", None)
         if attention_mask is not None:
             indices, cu_seqlens, _ = get_unpad_data(attention_mask[:, -q_len:])
-            hidden_states = index_first_axis(
-                rearrange(hidden_states, "b s ... -> (b s) ..."), indices
-            ).unsqueeze(0)
+            hidden_states = index_first_axis(rearrange(hidden_states, "b s ... -> (b s) ..."), indices).unsqueeze(0)
 
         if self.use_short_conv:
             conv_state_q, conv_state_k, conv_state_v = None, None, None
@@ -243,9 +230,7 @@ class GatedDeltaProduct(nn.Module):
 
         if self.num_v_heads > self.num_heads:
             q, k = map(
-                lambda x: repeat(
-                    x, "... h d -> ... (h g) d", g=self.num_v_heads // self.num_heads
-                ),
+                lambda x: repeat(x, "... h d -> ... (h g) d", g=self.num_v_heads // self.num_heads),
                 (q, k),
             )
 
@@ -255,15 +240,11 @@ class GatedDeltaProduct(nn.Module):
 
         beta = rearrange(beta, "... l (n h) -> ... (l n) h", n=self.num_householder)
         if self.use_forget_gate:
-            g = -self.A_log.float().exp() * F.softplus(
-                self.a_proj(hidden_states).float() + self.dt_bias
-            )
+            g = -self.A_log.float().exp() * F.softplus(self.a_proj(hidden_states).float() + self.dt_bias)
         else:
             g = None
 
-        recurrent_state = (
-            last_state["recurrent_state"] if last_state is not None else None
-        )
+        recurrent_state = last_state["recurrent_state"] if last_state is not None else None
         if mode == "chunk":
             o, recurrent_state = chunk_gated_delta_product(
                 q=q,
@@ -291,9 +272,7 @@ class GatedDeltaProduct(nn.Module):
                 g_new[:, :, 0] = g
                 g = rearrange(g_new, "... l n h -> ... (l n) h")
 
-            q_new = q.new_zeros(
-                q.shape[0], q.shape[1], self.num_householder, q.shape[2], q.shape[3]
-            )
+            q_new = q.new_zeros(q.shape[0], q.shape[1], self.num_householder, q.shape[2], q.shape[3])
             q_new[:, :, -1] = q
             q = rearrange(q_new, "... l n h d-> ... (l n) h d")
             if self.use_forget_gate:
@@ -305,9 +284,7 @@ class GatedDeltaProduct(nn.Module):
                     beta=beta,
                     initial_state=recurrent_state,
                     output_final_state=use_cache,
-                    cu_seqlens=cu_seqlens * self.num_householder
-                    if cu_seqlens is not None
-                    else None,
+                    cu_seqlens=cu_seqlens * self.num_householder if cu_seqlens is not None else None,
                     use_qk_l2norm_in_kernel=True,
                 )
             else:
@@ -318,29 +295,21 @@ class GatedDeltaProduct(nn.Module):
                     beta=beta,
                     initial_state=recurrent_state,
                     output_final_state=use_cache,
-                    cu_seqlens=cu_seqlens * self.num_householder
-                    if cu_seqlens is not None
-                    else None,
+                    cu_seqlens=cu_seqlens * self.num_householder if cu_seqlens is not None else None,
                     use_qk_l2norm_in_kernel=True,
                 )
-            o = rearrange(o, "... (l n) h d -> ... l n h d", n=self.num_householder)[
-                ..., -1, :, :
-            ].contiguous()
+            o = rearrange(o, "... (l n) h d -> ... l n h d", n=self.num_householder)[..., -1, :, :].contiguous()
 
         if past_key_values is not None:
             past_key_values.update(
                 recurrent_state=recurrent_state,
-                conv_state=(conv_state_q, conv_state_k, conv_state_v)
-                if self.use_short_conv
-                else None,
+                conv_state=(conv_state_q, conv_state_k, conv_state_v) if self.use_short_conv else None,
                 layer_idx=self.layer_idx,
                 offset=q_len,
             )
 
         if self.use_gate:
-            g = rearrange(
-                self.g_proj(hidden_states), "... (h d) -> ... h d", d=self.head_v_dim
-            )
+            g = rearrange(self.g_proj(hidden_states), "... (h d) -> ... h d", d=self.head_v_dim)
             o = self.o_norm(o, g)
         else:
             o = self.o_norm(o)

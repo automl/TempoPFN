@@ -3,20 +3,19 @@ import logging
 import os
 import warnings
 from pathlib import Path
-from typing import Dict, List
 
 import matplotlib.pyplot as plt
 import torch
 import torch.distributed as dist
 import torch.optim as optim
 import torchmetrics
+import wandb
 import yaml
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
-import wandb
 from src.data.containers import BatchTimeSeriesContainer
 from src.data.loaders import SyntheticValidationDataset, create_synthetic_dataset
 from src.gift_eval.aggregate_results import aggregate_results
@@ -33,9 +32,7 @@ from src.utils.utils import (
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Suppress debug messages from external libraries
@@ -82,15 +79,11 @@ def is_main_process():
 
 
 class TrainingPipeline:
-    def __init__(self, config: Dict):
+    def __init__(self, config: dict):
         self.config = config
-        self.grad_accum_enabled = bool(
-            self.config.get("gradient_accumulation_enabled", False)
-        )
+        self.grad_accum_enabled = bool(self.config.get("gradient_accumulation_enabled", False))
         self.accumulation_steps = (
-            max(1, int(self.config.get("accumulation_steps", 1)))
-            if self.grad_accum_enabled
-            else 1
+            max(1, int(self.config.get("accumulation_steps", 1))) if self.grad_accum_enabled else 1
         )
 
         # --- Distributed Setup ---
@@ -114,11 +107,9 @@ class TrainingPipeline:
 
         # Resolve run output directory
         self.run_output_dir = (
-            self.config.get("run_output_dir")
-            or f"{self.config['model_path']}/{self.config['model_name']}"
+            self.config.get("run_output_dir") or f"{self.config['model_path']}/{self.config['model_name']}"
         )
         self.config["resolved_run_output_dir"] = self.run_output_dir
-
 
         if is_main_process() and self.config.get("wandb"):
             init_kwargs = {
@@ -135,9 +126,7 @@ class TrainingPipeline:
             if self.config.get("continue_training"):
                 if self.config.get("wandb_run_id"):
                     init_kwargs["id"] = self.config["wandb_run_id"]
-                    logger.info(
-                        f"Attempting to resume wandb run with ID: {self.config['wandb_run_id']}"
-                    )
+                    logger.info(f"Attempting to resume wandb run with ID: {self.config['wandb_run_id']}")
 
             # Initialize Weights & Biases
             wandb.init(
@@ -156,21 +145,18 @@ class TrainingPipeline:
             )
             logger.info("=" * 80)
             logger.info(f"Run output directory: {self.run_output_dir}")
-       
+
         dist.barrier(device_ids=[self.local_rank])
         self._setup_optimizer()
         self._load_checkpoint()
-     
+
         dist.barrier(device_ids=[self.local_rank])
         logger.info(
-            f"Distributed training setup: rank {self.rank}, world size {self.world_size}, local rank {self.local_rank}, device {self.device}"
+            f"Distributed training setup: rank {self.rank}, world size {self.world_size}, "
+            f"local rank {self.local_rank}, device {self.device}"
         )
-        self.model = DDP(
-            self.model, device_ids=[self.local_rank], find_unused_parameters=True
-        )
-        logger.info(
-            f"Distributed Data Parallel model initialized on rank {self.local_rank} with device {self.device}"
-        )
+        self.model = DDP(self.model, device_ids=[self.local_rank], find_unused_parameters=True)
+        logger.info(f"Distributed Data Parallel model initialized on rank {self.local_rank} with device {self.device}")
 
         augmentations_config = self.config.get("data_augmentation", {})
         nan_stats_path = augmentations_config.get("nan_stats_path")
@@ -217,7 +203,8 @@ class TrainingPipeline:
             collate_fn=collate_fn,
         )
         print(
-            f"Distributed DataLoader created with {len(self.train_loader)} batches and num workers={self.config.get('num_workers', 0)}"
+            f"Distributed DataLoader created with {len(self.train_loader)} batches "
+            f"and num workers={self.config.get('num_workers', 0)}"
         )
 
         # Validation loader with per-rank file sharding for scalability
@@ -245,7 +232,7 @@ class TrainingPipeline:
             shuffle=False,
             sampler=val_sampler,
             collate_fn=collate_fn,
-            num_workers=0,  
+            num_workers=0,
         )
 
         self._setup_metrics()
@@ -265,20 +252,14 @@ class TrainingPipeline:
 
         # Calculate scheduler parameters
         effective_accum_steps = self.accumulation_steps
-        total_steps = int(
-            self.num_training_iterations // effective_accum_steps // self.world_size
-        )
+        total_steps = int(self.num_training_iterations // effective_accum_steps // self.world_size)
 
         scheduler_type = self.config.get("lr_scheduler", "warmup_stable_decay")
 
         if scheduler_type == "warmup_stable_decay":
             # Calculate phase durations
-            warmup_ratio = float(
-                self.config.get("warmup_ratio", 0.01)
-            )  # 1% of training
-            stable_ratio = float(
-                self.config.get("stable_ratio", 0.85)
-            )  # 85% of training
+            warmup_ratio = float(self.config.get("warmup_ratio", 0.01))  # 1% of training
+            stable_ratio = float(self.config.get("stable_ratio", 0.85))  # 85% of training
 
             num_warmup_steps = int(total_steps * warmup_ratio)
             num_stable_steps = int(total_steps * stable_ratio)
@@ -297,19 +278,11 @@ class TrainingPipeline:
             if is_main_process():
                 logger.info("WSD Scheduler configured:")
                 logger.info(f"  Total steps: {total_steps}")
-                logger.info(
-                    f"  Warmup steps: {num_warmup_steps} ({warmup_ratio * 100:.1f}%)"
-                )
-                logger.info(
-                    f"  Stable steps: {num_stable_steps} ({stable_ratio * 100:.1f}%)"
-                )
-                logger.info(
-                    f"  Decay steps: {total_steps - num_warmup_steps - num_stable_steps}"
-                )
+                logger.info(f"  Warmup steps: {num_warmup_steps} ({warmup_ratio * 100:.1f}%)")
+                logger.info(f"  Stable steps: {num_stable_steps} ({stable_ratio * 100:.1f}%)")
+                logger.info(f"  Decay steps: {total_steps - num_warmup_steps - num_stable_steps}")
                 logger.info(f"  Peak LR: {self.config['peak_lr']}")
-                logger.info(
-                    f"  Min LR: {self.config['peak_lr'] * float(self.config.get('min_lr_ratio', 0.01))}"
-                )
+                logger.info(f"  Min LR: {self.config['peak_lr'] * float(self.config.get('min_lr_ratio', 0.01))}")
 
         elif scheduler_type == "cosine_with_warmup":
             num_warmup_steps = int(total_steps * self.config.get("warmup_ratio", 0.01))
@@ -343,8 +316,7 @@ class TrainingPipeline:
             self.scheduler = CosineAnnealingLR(
                 self.optimizer,
                 T_max=total_steps,
-                eta_min=float(self.config["peak_lr"])
-                * float(self.config.get("min_lr_ratio", 0.01)),
+                eta_min=float(self.config["peak_lr"]) * float(self.config.get("min_lr_ratio", 0.01)),
             )
 
         else:
@@ -385,17 +357,13 @@ class TrainingPipeline:
         checkpoint_path_value = self.config.get("checkpoint_path")
         if not checkpoint_path_value:
             if is_main_process():
-                logger.info(
-                    "continue_training=True but no checkpoint_path provided; starting from scratch."
-                )
+                logger.info("continue_training=True but no checkpoint_path provided; starting from scratch.")
             return
 
         checkpoint_path = Path(checkpoint_path_value)
         if not checkpoint_path.exists():
             if is_main_process():
-                logger.warning(
-                    f"Checkpoint path does not exist at {checkpoint_path}. Starting from scratch."
-                )
+                logger.warning(f"Checkpoint path does not exist at {checkpoint_path}. Starting from scratch.")
             return
 
         if is_main_process():
@@ -433,9 +401,7 @@ class TrainingPipeline:
 
     def _inverse_scale(self, model, output: dict) -> torch.Tensor:
         # Use the unwrapped model (module) to access scaler
-        return model.module.scaler.inverse_scale(
-            output["result"], output["scale_statistics"]
-        )
+        return model.module.scaler.inverse_scale(output["result"], output["scale_statistics"])
 
     def _train_epoch(self, epoch: int) -> float:
         self.model.train()
@@ -467,20 +433,16 @@ class TrainingPipeline:
             total_loss_sum += loss.item() * batch_size
             total_samples += batch_size
 
-            if ((i + 1) % self.accumulation_steps == 0) or (
-                (i + 1) == len(self.train_loader)
-            ):
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.config.get("gradient_clip_val", 1.0)
-                )
+            if ((i + 1) % self.accumulation_steps == 0) or ((i + 1) == len(self.train_loader)):
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.get("gradient_clip_val", 1.0))
 
                 self.optimizer.step()
 
                 if hasattr(self.scheduler, "step") and callable(self.scheduler.step):
                     if isinstance(self.scheduler, WarmupStableDecayScheduler):
-                        self.scheduler.step()  
+                        self.scheduler.step()
                     else:
-                        self.scheduler.step()  
+                        self.scheduler.step()
 
                 self.optimizer.zero_grad()
 
@@ -488,15 +450,11 @@ class TrainingPipeline:
                 dist.barrier()
                 self._validate_epoch(i)
 
-                total_loss_tensor = torch.tensor(
-                    [total_loss_sum, total_samples], device=self.device
-                )
+                total_loss_tensor = torch.tensor([total_loss_sum, total_samples], device=self.device)
                 dist.all_reduce(total_loss_tensor, op=dist.ReduceOp.SUM)
                 global_loss_sum, global_samples = total_loss_tensor.tolist()
 
-                train_loss = (
-                    global_loss_sum / global_samples if global_samples > 0 else 0.0
-                )
+                train_loss = global_loss_sum / global_samples if global_samples > 0 else 0.0
                 if self.accumulation_steps > 1:
                     train_loss *= self.accumulation_steps
 
@@ -510,16 +468,12 @@ class TrainingPipeline:
 
                     if hasattr(self.scheduler, "get_phase"):
                         step_metrics["train/lr_phase"] = self.scheduler.get_phase()
-                        step_metrics["train/lr_factor"] = self.scheduler.get_lr_factor(
-                            self.scheduler.current_step - 1
-                        )
+                        step_metrics["train/lr_factor"] = self.scheduler.get_lr_factor(self.scheduler.current_step - 1)
 
                     if self.config.get("wandb"):
                         wandb.log(step_metrics, step=i)
 
-                    logger.info(
-                        f"Step {i} | Training Loss: {train_loss:.4f} | LR: {current_lr:.2e}"
-                    )
+                    logger.info(f"Step {i} | Training Loss: {train_loss:.4f} | LR: {current_lr:.2e}")
 
                 total_loss_sum, total_samples = 0.0, 0
 
@@ -566,30 +520,22 @@ class TrainingPipeline:
         global_loss_sum, global_samples = total_stats.tolist()
         avg_val_loss = global_loss_sum / global_samples if global_samples > 0 else 0.0
 
-        val_computed_metrics = {
-            name: metric.compute() for name, metric in self.val_metrics.items()
-        }
+        val_computed_metrics = {name: metric.compute() for name, metric in self.val_metrics.items()}
 
         if is_main_process():
             log_metrics = {"val/loss": avg_val_loss}
-            log_metrics.update(
-                {
-                    f"val/{name}": value.item()
-                    for name, value in val_computed_metrics.items()
-                }
-            )
+            log_metrics.update({f"val/{name}": value.item() for name, value in val_computed_metrics.items()})
 
             if self.config.get("wandb"):
                 wandb.log(log_metrics, step=epoch + self.wandb_step_offset)
 
             logger.info(
-                f"Epoch {epoch} | Validation Loss: {avg_val_loss:.4f} | Validation MAPE: {val_computed_metrics.get('mape', -1).item():.4f}"
+                f"Epoch {epoch} | Validation Loss: {avg_val_loss:.4f} | "
+                f"Validation MAPE: {val_computed_metrics.get('mape', -1).item():.4f}"
             )
 
             if first_batch_for_plotting is not None:
-                self._plot_validation_examples(
-                    epoch, first_batch_for_plotting, plot_all=True
-                )
+                self._plot_validation_examples(epoch, first_batch_for_plotting, plot_all=True)
 
         # Ensure all ranks finish validation before returning to training
         dist.barrier()
@@ -597,7 +543,7 @@ class TrainingPipeline:
 
     def _update_metrics(
         self,
-        metrics: Dict,
+        metrics: dict,
         predictions: torch.Tensor,
         targets: torch.Tensor,
         distributed: bool = True,
@@ -607,9 +553,7 @@ class TrainingPipeline:
         """
         if distributed and dist.is_initialized():
             world_size = dist.get_world_size()
-            predictions_list = [
-                torch.zeros_like(predictions) for _ in range(world_size)
-            ]
+            predictions_list = [torch.zeros_like(predictions) for _ in range(world_size)]
             targets_list = [torch.zeros_like(targets) for _ in range(world_size)]
 
             dist.all_gather(predictions_list, predictions)
@@ -629,9 +573,7 @@ class TrainingPipeline:
                 predictions_gathered = predictions_gathered[..., median_idx]
             except (ValueError, AttributeError):
                 if is_main_process():
-                    logger.warning(
-                        "Median (0.5) quantile not found for metric calculation. Skipping."
-                    )
+                    logger.warning("Median (0.5) quantile not found for metric calculation. Skipping.")
                 return  # Exit if we can't get a point forecast
 
         if predictions_gathered.dim() == 3:
@@ -646,17 +588,18 @@ class TrainingPipeline:
         self,
         epoch: int,
         plot_batch: BatchTimeSeriesContainer,
-        plot_indices: List[int] = [0, 1, 2, 3, 4],
+        plot_indices: list[int] | None = None,
         plot_all: bool = False,
     ) -> None:
         """
         Plots validation examples from a given batch and logs them to WandB.
         This method should only be called from the main process.
         """
-        if (not self.config.get("wandb")) or (
-            not self.config.get("wandb_plots", False)
-        ):
+        if (not self.config.get("wandb")) or (not self.config.get("wandb_plots", False)):
             return
+
+        if plot_indices is None:
+            plot_indices = [0, 1, 2, 3, 4]
 
         model = self.model.module
 
@@ -680,9 +623,7 @@ class TrainingPipeline:
                     batch=plot_batch,
                     sample_idx=i,
                     predicted_values=pred_future,
-                    model_quantiles=model.quantiles
-                    if model.loss_type == "quantile"
-                    else None,
+                    model_quantiles=model.quantiles if model.loss_type == "quantile" else None,
                     title=f"Epoch {epoch} - Val Sample {i}",
                     output_file=None,
                     show=False,
@@ -697,9 +638,7 @@ class TrainingPipeline:
     def train(self) -> None:
         if is_main_process():
             per_rank_iterations = len(self.train_loader)
-            optimizer_steps_per_rank = (
-                per_rank_iterations + self.accumulation_steps - 1
-            ) // self.accumulation_steps
+            optimizer_steps_per_rank = (per_rank_iterations + self.accumulation_steps - 1) // self.accumulation_steps
             logger.info(
                 f"Starting training: configured_iterations={self.num_training_iterations}, "
                 f"world_size={self.world_size}, per_rank_iterations={per_rank_iterations}, "
@@ -770,9 +709,7 @@ class TrainingPipeline:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-c", "--config", default="./configs/train.yaml", help="Path to config file"
-    )
+    parser.add_argument("-c", "--config", default="./configs/train.yaml", help="Path to config file")
     parser.add_argument(
         "--run_output_dir",
         default=None,

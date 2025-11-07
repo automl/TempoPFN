@@ -1,8 +1,7 @@
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
-
 from src.data.containers import TimeSeriesContainer
 from src.synthetic_generation.abstract_classes import GeneratorWrapper
 from src.synthetic_generation.forecast_pfn_prior.forecast_pfn_generator import (
@@ -16,7 +15,7 @@ class ForecastPFNGeneratorWrapper(GeneratorWrapper):
         super().__init__(params)
         self.params: ForecastPFNGeneratorParams = params
 
-    def _sample_parameters(self, batch_size: int) -> Dict[str, Any]:
+    def _sample_parameters(self, batch_size: int) -> dict[str, Any]:
         """
         Sample parameters for generating a batch of time series.
 
@@ -60,9 +59,7 @@ class ForecastPFNGeneratorWrapper(GeneratorWrapper):
         )
         return params
 
-    def _apply_augmentations(
-        self, batch_values: np.ndarray, mixup_prob: float, mixup_series: int
-    ) -> np.ndarray:
+    def _apply_augmentations(self, batch_values: np.ndarray, mixup_prob: float, mixup_series: int) -> np.ndarray:
         """
         Apply multivariate augmentations to the batch.
 
@@ -87,20 +84,18 @@ class ForecastPFNGeneratorWrapper(GeneratorWrapper):
             mixup_series = self.rng.integers(2, mixup_series + 1)
             mixup_indices = self.rng.choice(batch_size, mixup_series, replace=False)
             original_vals = batch_values[mixup_indices, :].copy()
-            for i, idx in enumerate(mixup_indices):
+            for _, idx in enumerate(mixup_indices):
                 mixup_weights = self.rng.random(mixup_series)
                 mixup_weights /= np.sum(mixup_weights)
-                batch_values[idx, :] = np.sum(
-                    original_vals * mixup_weights[:, np.newaxis], axis=0
-                )
+                batch_values[idx, :] = np.sum(original_vals * mixup_weights[:, np.newaxis], axis=0)
 
         return batch_values
 
     def generate_batch(
         self,
         batch_size: int,
-        seed: Optional[int] = None,
-        params: Optional[Dict[str, Any]] = None,
+        seed: int | None = None,
+        params: dict[str, Any] | None = None,
     ) -> TimeSeriesContainer:
         """
         Generate a batch of time series.
@@ -136,16 +131,8 @@ class ForecastPFNGeneratorWrapper(GeneratorWrapper):
         for i in range(batch_size):
             batch_seed = None if seed is None else seed + i
             # Extract individual parameters for this batch item
-            frequency_i = (
-                params["frequency"][i]
-                if isinstance(params["frequency"], list)
-                else params["frequency"]
-            )
-            start_i = (
-                params["start"][i]
-                if isinstance(params["start"], list)
-                else params["start"]
-            )
+            frequency_i = params["frequency"][i] if isinstance(params["frequency"], list) else params["frequency"]
+            start_i = params["start"][i] if isinstance(params["start"], list) else params["start"]
 
             try:
                 values = generator.generate_time_series(

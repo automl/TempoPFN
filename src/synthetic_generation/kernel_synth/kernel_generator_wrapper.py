@@ -1,7 +1,6 @@
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
-
 from src.data.containers import TimeSeriesContainer
 from src.synthetic_generation.abstract_classes import GeneratorWrapper
 from src.synthetic_generation.generator_params import KernelGeneratorParams
@@ -18,7 +17,7 @@ class KernelGeneratorWrapper(GeneratorWrapper):
         super().__init__(params)
         self.params: KernelGeneratorParams = params
 
-    def _sample_parameters(self, batch_size: int) -> Dict[str, Any]:
+    def _sample_parameters(self, batch_size: int) -> dict[str, Any]:
         """
         Sample parameter values for batch generation with KernelSynthGenerator.
 
@@ -40,8 +39,8 @@ class KernelGeneratorWrapper(GeneratorWrapper):
     def generate_batch(
         self,
         batch_size: int,
-        seed: Optional[int] = None,
-        params: Optional[Dict[str, Any]] = None,
+        seed: int | None = None,
+        params: dict[str, Any] | None = None,
     ) -> TimeSeriesContainer:
         """
         Generate a batch of synthetic multivariate time series using KernelSynthGenerator.

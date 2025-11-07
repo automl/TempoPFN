@@ -1,7 +1,4 @@
-from typing import Dict, List, Optional, Tuple, Union
-
 import numpy as np
-
 from src.synthetic_generation.abstract_classes import AbstractTimeSeriesGenerator
 from src.synthetic_generation.generator_params import SpikesGeneratorParams, SpikeShape
 
@@ -13,7 +10,7 @@ class SpikesGenerator(AbstractTimeSeriesGenerator):
         self.params = params
         np.random.seed(params.global_seed)
 
-    def generate_time_series(self, random_seed: Optional[int] = None) -> np.ndarray:
+    def generate_time_series(self, random_seed: int | None = None) -> np.ndarray:
         """Generate a time series with baseline and random spikes."""
         if random_seed is not None:
             np.random.seed(random_seed)
@@ -27,9 +24,7 @@ class SpikesGenerator(AbstractTimeSeriesGenerator):
         series_params = self._sample_series_parameters()
 
         if series_params["spike_count"] > 0:
-            positions = self._generate_spike_positions(
-                series_params["spike_count"], series_params["burst_mode"]
-            )
+            positions = self._generate_spike_positions(series_params["spike_count"], series_params["burst_mode"])
             for pos in positions:
                 spike = self._generate_single_spike(
                     series_params["amplitude"],
@@ -44,7 +39,7 @@ class SpikesGenerator(AbstractTimeSeriesGenerator):
 
         return signal
 
-    def _sample_series_parameters(self) -> Dict:
+    def _sample_series_parameters(self) -> dict:
         """Sample consistent parameters for the entire series."""
         series_type = np.random.choice(
             list(self.params.series_type_probabilities.keys()),
@@ -53,18 +48,10 @@ class SpikesGenerator(AbstractTimeSeriesGenerator):
 
         spike_shapes = []
         if series_type == "v_only":
-            shape = (
-                SpikeShape.V_SHAPE
-                if np.random.random() < 0.5
-                else SpikeShape.INVERTED_V
-            )
+            shape = SpikeShape.V_SHAPE if np.random.random() < 0.5 else SpikeShape.INVERTED_V
             spike_shapes = [shape]  # Only one shape type for consistency
         elif series_type == "chopped_only":
-            shape = (
-                SpikeShape.CHOPPED_V
-                if np.random.random() < 0.5
-                else SpikeShape.CHOPPED_INVERTED_V
-            )
+            shape = SpikeShape.CHOPPED_V if np.random.random() < 0.5 else SpikeShape.CHOPPED_INVERTED_V
             spike_shapes = [shape]
         else:  # mixed
             above = np.random.random() < self.params.spikes_above_baseline_probability
@@ -85,14 +72,11 @@ class SpikesGenerator(AbstractTimeSeriesGenerator):
             "spike_count": self._sample_scalar(spike_count_range, is_int=True),
             "amplitude": self._sample_scalar(self.params.spike_amplitude),
             "angle_deg": np.random.uniform(*self.params.spike_angle_range),
-            "spikes_above_baseline": np.random.random()
-            < self.params.spikes_above_baseline_probability,
+            "spikes_above_baseline": np.random.random() < self.params.spikes_above_baseline_probability,
             "spike_shapes": spike_shapes,
         }
 
-    def _sample_scalar(
-        self, value: Union[float, int, Tuple], is_int: bool = False
-    ) -> float:
+    def _sample_scalar(self, value: float | int | tuple, is_int: bool = False) -> float:
         """Sample a scalar from a value or range."""
         if isinstance(value, tuple):
             return np.random.randint(*value) if is_int else np.random.uniform(*value)
@@ -109,10 +93,7 @@ class SpikesGenerator(AbstractTimeSeriesGenerator):
         filter_response[np.abs(freqs) > self.params.noise_cutoff_freq] *= np.exp(
             -(
                 (
-                    (
-                        np.abs(freqs)[np.abs(freqs) > self.params.noise_cutoff_freq]
-                        - self.params.noise_cutoff_freq
-                    )
+                    (np.abs(freqs)[np.abs(freqs) > self.params.noise_cutoff_freq] - self.params.noise_cutoff_freq)
                     / self.params.noise_cutoff_freq
                 )
                 ** 2
@@ -122,9 +103,7 @@ class SpikesGenerator(AbstractTimeSeriesGenerator):
         colored_noise = np.real(np.fft.ifft(fft_noise * filter_response))
         return colored_noise / np.std(colored_noise) * self.params.noise_std
 
-    def _generate_spike_positions(
-        self, spike_count: int, burst_mode: bool
-    ) -> List[int]:
+    def _generate_spike_positions(self, spike_count: int, burst_mode: bool) -> list[int]:
         """Generate spike positions with minimum separation."""
         if spike_count == 0:
             return []
@@ -139,28 +118,17 @@ class SpikesGenerator(AbstractTimeSeriesGenerator):
         if burst_mode:
             burst_width = max(
                 spike_count * min_separation,
-                int(
-                    np.random.uniform(*self.params.burst_width_fraction)
-                    * self.params.length
-                ),
+                int(np.random.uniform(*self.params.burst_width_fraction) * self.params.length),
             )
             burst_width = min(burst_width, usable_length)
-            burst_start = np.random.randint(
-                margin, self.params.length - burst_width - margin + 1
-            )
-            positions = self._distribute_positions_burst_mode(
-                spike_count, burst_start, burst_start + burst_width
-            )
+            burst_start = np.random.randint(margin, self.params.length - burst_width - margin + 1)
+            positions = self._distribute_positions_burst_mode(spike_count, burst_start, burst_start + burst_width)
         else:
-            positions = self._distribute_positions_spread_mode(
-                spike_count, margin, self.params.length - margin
-            )
+            positions = self._distribute_positions_spread_mode(spike_count, margin, self.params.length - margin)
 
         return self._enforce_separation(positions, min_separation, margin)
 
-    def _distribute_positions_spread_mode(
-        self, count: int, start: int, end: int
-    ) -> List[int]:
+    def _distribute_positions_spread_mode(self, count: int, start: int, end: int) -> list[int]:
         """
         Distribute positions with perfectly consistent spacing between spikes
         while using smaller edge margins.
@@ -187,32 +155,24 @@ class SpikesGenerator(AbstractTimeSeriesGenerator):
         # Compute ideal spacing S given desired margin ratio
         denominator = (count - 1) + 2.0 * ratio
         if denominator <= 0:
-            return self._distribute_positions_fallback(
-                count, start, end, min_separation
-            )
+            return self._distribute_positions_fallback(count, start, end, min_separation)
 
         base_spacing = total_space / denominator
 
         # Ensure spacing respects the minimum separation
         if base_spacing < min_separation:
-            return self._distribute_positions_fallback(
-                count, start, end, min_separation
-            )
+            return self._distribute_positions_fallback(count, start, end, min_separation)
 
         edge_margin = ratio * base_spacing
 
-        positions = [
-            int(round(start + edge_margin + i * base_spacing)) for i in range(count)
-        ]
+        positions = [int(round(start + edge_margin + i * base_spacing)) for i in range(count)]
 
         # Clamp within bounds and ensure strictly increasing order
         positions = sorted(max(start, min(end, p)) for p in positions)
 
         return positions
 
-    def _distribute_positions_burst_mode(
-        self, count: int, start: int, end: int
-    ) -> List[int]:
+    def _distribute_positions_burst_mode(self, count: int, start: int, end: int) -> list[int]:
         """Original burst mode distribution logic."""
         if count <= 1:
             return [(start + end) // 2]
@@ -222,9 +182,7 @@ class SpikesGenerator(AbstractTimeSeriesGenerator):
         available_space = end - start
 
         if available_space < (count - 1) * min_separation:
-            return self._distribute_positions_fallback(
-                count, start, end, min_separation
-            )
+            return self._distribute_positions_fallback(count, start, end, min_separation)
 
         # Distribute positions with some randomness for burst mode
         positions = []
@@ -243,14 +201,12 @@ class SpikesGenerator(AbstractTimeSeriesGenerator):
 
         return positions
 
-    def _distribute_positions_fallback(
-        self, count: int, start: int, end: int, min_separation: int
-    ) -> List[int]:
+    def _distribute_positions_fallback(self, count: int, start: int, end: int, min_separation: int) -> list[int]:
         """Fallback method when there's not enough space for optimal distribution."""
         positions = []
         current_pos = start
 
-        for i in range(count):
+        for _ in range(count):
             if current_pos <= end:
                 positions.append(current_pos)
                 current_pos += min_separation
@@ -259,9 +215,7 @@ class SpikesGenerator(AbstractTimeSeriesGenerator):
 
         return positions
 
-    def _enforce_separation(
-        self, positions: List[int], min_separation: int, margin: int
-    ) -> List[int]:
+    def _enforce_separation(self, positions: list[int], min_separation: int, margin: int) -> list[int]:
         """Ensure minimum separation between spike positions."""
         if len(positions) <= 1:
             return positions
@@ -283,7 +237,7 @@ class SpikesGenerator(AbstractTimeSeriesGenerator):
         self,
         amplitude: float,
         angle_deg: float,
-        spike_shapes: List[SpikeShape],
+        spike_shapes: list[SpikeShape],
         spikes_above_baseline: bool,
     ) -> np.ndarray:
         """Generate a single spike with specified shape and angle."""
@@ -313,15 +267,11 @@ class SpikesGenerator(AbstractTimeSeriesGenerator):
             spike[rise_time : rise_time + plateau_duration] = final_amplitude
 
         # Fall phase
-        spike[rise_time + plateau_duration :] = np.linspace(
-            final_amplitude, 0, fall_time, endpoint=False
-        )
+        spike[rise_time + plateau_duration :] = np.linspace(final_amplitude, 0, fall_time, endpoint=False)
 
         return spike
 
-    def _inject_spike(
-        self, signal: np.ndarray, spike: np.ndarray, position: int
-    ) -> None:
+    def _inject_spike(self, signal: np.ndarray, spike: np.ndarray, position: int) -> None:
         """Inject a spike into the signal at the given position."""
         half_length = len(spike) // 2
         start = max(0, position - half_length)

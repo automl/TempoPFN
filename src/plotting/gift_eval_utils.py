@@ -1,5 +1,4 @@
 import logging
-from typing import List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -13,9 +12,7 @@ from src.plotting.plot_timeseries import (
 logger = logging.getLogger(__name__)
 
 
-def _prepare_data_for_plotting(
-    input_data: dict, label_data: dict, max_context_length: int
-):
+def _prepare_data_for_plotting(input_data: dict, label_data: dict, max_context_length: int):
     history_values = np.asarray(input_data["target"], dtype=np.float32)
     future_values = np.asarray(label_data["target"], dtype=np.float32)
     start_period = input_data["start"]
@@ -38,16 +35,14 @@ def _prepare_data_for_plotting(
 
     # Convert Period to Timestamp if needed
     start_timestamp = (
-        start_period.to_timestamp()
-        if hasattr(start_period, "to_timestamp")
-        else pd.Timestamp(start_period)
+        start_period.to_timestamp() if hasattr(start_period, "to_timestamp") else pd.Timestamp(start_period)
     )
     return history_values, future_values, start_timestamp
 
 
 def _extract_quantile_predictions(
     forecast,
-) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
+) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None]:
     def ensure_2d_time_first(arr):
         if arr is None:
             return None
@@ -106,7 +101,7 @@ def _create_plot(
     dataset_full_name: str,
     dataset_freq: str,
     max_context_length: int,
-    title: Optional[str] = None,
+    title: str | None = None,
 ):
     try:
         history_values, future_values, start_timestamp = _prepare_data_for_plotting(
@@ -140,9 +135,7 @@ def _create_plot(
                         pred_arr = pred_arr.T
                     else:
                         if pred_arr.size >= target_arr.shape[0]:
-                            pred_arr = pred_arr.flatten()[
-                                : target_arr.shape[0]
-                            ].reshape(-1, 1)
+                            pred_arr = pred_arr.flatten()[: target_arr.shape[0]].reshape(-1, 1)
                             if target_arr.shape[1] > 1:
                                 pred_arr = np.broadcast_to(pred_arr, target_arr.shape)
             return pred_arr
@@ -171,20 +164,18 @@ def _create_plot(
 
 
 def create_plots_for_dataset(
-    forecasts: List,
+    forecasts: list,
     test_data,
     dataset_metadata,
     max_plots: int,
     max_context_length: int,
-) -> List[Tuple[object, str]]:
+) -> list[tuple[object, str]]:
     input_data_list = list(test_data.input)
     label_data_list = list(test_data.label)
     num_plots = min(len(forecasts), max_plots)
-    logger.info(
-        f"Creating {num_plots} plots for {getattr(dataset_metadata, 'full_name', str(dataset_metadata))}"
-    )
+    logger.info(f"Creating {num_plots} plots for {getattr(dataset_metadata, 'full_name', str(dataset_metadata))}")
 
-    figures_with_names: List[Tuple[object, str]] = []
+    figures_with_names: list[tuple[object, str]] = []
     for i in range(num_plots):
         try:
             forecast = forecasts[i]
@@ -205,9 +196,7 @@ def create_plots_for_dataset(
                 title=title,
             )
             if fig is not None:
-                filename = (
-                    f"{getattr(dataset_metadata, 'freq', 'D')}_window_{i + 1:03d}.png"
-                )
+                filename = f"{getattr(dataset_metadata, 'freq', 'D')}_window_{i + 1:03d}.png"
                 figures_with_names.append((fig, filename))
         except Exception as e:
             logger.warning(f"Error creating plot for window {i + 1}: {e}")

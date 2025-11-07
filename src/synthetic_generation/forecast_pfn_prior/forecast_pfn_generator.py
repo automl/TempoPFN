@@ -1,10 +1,8 @@
 import logging
-from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
 from pandas.tseries.frequencies import to_offset
-
 from src.data.frequency import FREQUENCY_MAPPING, Frequency
 from src.synthetic_generation.abstract_classes import AbstractTimeSeriesGenerator
 from src.synthetic_generation.forecast_pfn_prior.series_config import (
@@ -36,7 +34,7 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
         self,
         params: ForecastPFNGeneratorParams,
         length: int = 1024,
-        random_seed: Optional[int] = None,
+        random_seed: int | None = None,
         max_absolute_spread: float = 300.0,
         max_absolute_value: float = 300.0,
         max_retries: int = 100,
@@ -148,37 +146,28 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
             return False
 
         # Check absolute value thresholds
-        if (
-            abs(min_val) > self.max_absolute_value
-            or abs(max_val) > self.max_absolute_value
-        ):
+        if abs(min_val) > self.max_absolute_value or abs(max_val) > self.max_absolute_value:
             return False
 
         return True
 
-    def _generate_damping(
-        self, input_size: int, p: list = [0.4, 0.5, 0.1]
-    ) -> np.ndarray:
+    def _generate_damping(self, input_size: int, p: list = None) -> np.ndarray:
         """Generate damping effect for a univariate time series."""
+        if p is None:
+            p = [0.4, 0.5, 0.1]
+
         spacing = self.rng.choice(["equal", "regular", "random"], p=p)
         t = np.arange(0, input_size, 1).astype(float)
 
         if spacing == "random":
             num_steps = self.rng.integers(1, 3)
-            damping_intervals = np.sort(
-                self.rng.choice(t[: -int(input_size * 0.1)], num_steps, replace=False)
-            )
+            damping_intervals = np.sort(self.rng.choice(t[: -int(input_size * 0.1)], num_steps, replace=False))
             damping_factors = self.rng.uniform(0.1, 2, num_steps + 1)
         elif spacing == "equal":
             num_steps = self.rng.integers(3, 7)
             damping_intervals = np.linspace(0, input_size, num_steps + 2)[1:-1]
             damping_factors = np.array(
-                [
-                    self.rng.uniform(0.4, 0.8)
-                    if (i % 2) == 0
-                    else self.rng.uniform(1, 2)
-                    for i in range(num_steps + 1)
-                ]
+                [self.rng.uniform(0.4, 0.8) if (i % 2) == 0 else self.rng.uniform(1, 2) for i in range(num_steps + 1)]
             )
         else:
             custom_lengths = self.rng.integers(1, input_size // 2, 2)
@@ -194,29 +183,19 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
             damping_intervals = np.array(damping_intervals)
             num_steps = len(damping_intervals)
             damping_factors = np.array(
-                [
-                    self.rng.uniform(0.4, 0.8)
-                    if (i % 2) == 0
-                    else self.rng.uniform(1, 2)
-                    for i in range(num_steps + 1)
-                ]
+                [self.rng.uniform(0.4, 0.8) if (i % 2) == 0 else self.rng.uniform(1, 2) for i in range(num_steps + 1)]
             )
 
         damping = np.piecewise(
             t,
             [t < damping_intervals[0]]
-            + [
-                (t >= damping_intervals[i]) & (t < damping_intervals[i + 1])
-                for i in range(num_steps - 1)
-            ]
+            + [(t >= damping_intervals[i]) & (t < damping_intervals[i + 1]) for i in range(num_steps - 1)]
             + [t >= damping_intervals[-1]],
             damping_factors.tolist(),
         )
         return damping
 
-    def _apply_time_warping(
-        self, values: np.ndarray, warp_strength: float = 0.1
-    ) -> np.ndarray:
+    def _apply_time_warping(self, values: np.ndarray, warp_strength: float = 0.1) -> np.ndarray:
         """Apply time warping augmentation to univariate series."""
         length = len(values)
         # Create smooth random warping function
@@ -227,23 +206,17 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
 
         # Interpolate to get smooth warping
         original_indices = np.arange(length)
-        warped_indices = np.interp(
-            original_indices, knot_positions, knot_positions + warp_offsets
-        )
+        warped_indices = np.interp(original_indices, knot_positions, knot_positions + warp_offsets)
         warped_indices = np.clip(warped_indices, 0, length - 1)
 
         # Interpolate values at warped positions
         return np.interp(warped_indices, original_indices, values)
 
-    def _apply_magnitude_scaling(
-        self, values: np.ndarray, scale_range: tuple = (0.8, 1.2)
-    ) -> np.ndarray:
+    def _apply_magnitude_scaling(self, values: np.ndarray, scale_range: tuple = (0.8, 1.2)) -> np.ndarray:
         """Apply random magnitude scaling to different segments of the series."""
         length = len(values)
         num_segments = self.rng.integers(1, 4)
-        segment_boundaries = np.sort(
-            self.rng.choice(length, num_segments - 1, replace=False)
-        )
+        segment_boundaries = np.sort(self.rng.choice(length, num_segments - 1, replace=False))
         segment_boundaries = np.concatenate([[0], segment_boundaries, [length]])
 
         scaled_values = values.copy()
@@ -259,36 +232,22 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
         augmented_values = np.asarray(values).copy()
 
         # Apply time warping with some probability
-        if (
-            hasattr(self.params, "time_warp_prob")
-            and self.rng.random() < self.params.time_warp_prob
-        ):
+        if hasattr(self.params, "time_warp_prob") and self.rng.random() < self.params.time_warp_prob:
             warp_strength = getattr(self.params, "time_warp_strength", 0.05)
             augmented_values = self._apply_time_warping(augmented_values, warp_strength)
 
         # Apply magnitude scaling with some probability
-        if (
-            hasattr(self.params, "magnitude_scale_prob")
-            and self.rng.random() < self.params.magnitude_scale_prob
-        ):
+        if hasattr(self.params, "magnitude_scale_prob") and self.rng.random() < self.params.magnitude_scale_prob:
             scale_range = getattr(self.params, "magnitude_scale_range", (0.9, 1.1))
-            augmented_values = self._apply_magnitude_scaling(
-                augmented_values, scale_range
-            )
+            augmented_values = self._apply_magnitude_scaling(augmented_values, scale_range)
 
         # Apply damping augmentation
-        if (
-            hasattr(self.params, "damping_prob")
-            and self.rng.random() < self.params.damping_prob
-        ):
+        if hasattr(self.params, "damping_prob") and self.rng.random() < self.params.damping_prob:
             damping = self._generate_damping(len(augmented_values))
             augmented_values = augmented_values * damping
 
         # Apply spike augmentation
-        if (
-            hasattr(self.params, "spike_prob")
-            and self.rng.random() < self.params.spike_prob
-        ):
+        if hasattr(self.params, "spike_prob") and self.rng.random() < self.params.spike_prob:
             spikes = generate_spikes(len(augmented_values))
             spikes = spikes.numpy()  # Convert torch tensor to numpy array
             if spikes.max() < 0:
@@ -297,10 +256,7 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
                 augmented_values = augmented_values + spikes + 1
 
         # Replace with pure spike signal (rare event)
-        if (
-            hasattr(self.params, "pure_spike_prob")
-            and self.rng.random() < self.params.pure_spike_prob
-        ):
+        if hasattr(self.params, "pure_spike_prob") and self.rng.random() < self.params.pure_spike_prob:
             spikes = generate_spikes(len(augmented_values))
             augmented_values = spikes.numpy()  # Convert torch tensor to numpy array
 
@@ -309,9 +265,9 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
     def generate_time_series(
         self,
         start: np.datetime64,
-        random_seed: Optional[int] = None,
+        random_seed: int | None = None,
         apply_augmentations: bool = True,
-        frequency: Optional[Frequency] = None,
+        frequency: Frequency | None = None,
     ) -> np.ndarray:
         """
         Generate a time series with built-in filtering and retry logic.
@@ -349,9 +305,7 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
             if attempt > 0:
                 # Generate a new seed based on the original seed and attempt number
                 if original_seed is not None:
-                    current_seed = (
-                        original_seed + attempt * 123
-                    )  # Large offset to ensure different sequences
+                    current_seed = original_seed + attempt * 123  # Large offset to ensure different sequences
                 else:
                     current_seed = attempt * 987
 
@@ -375,36 +329,24 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
                     Frequency.A,
                 ]
                 if attempt == 0:
-                    chosen_frequency = (
-                        frequency if frequency is not None else self.frequency
-                    )
+                    chosen_frequency = frequency if frequency is not None else self.frequency
                 else:
                     # Sample a different frequency when possible
                     candidate_freqs = (
-                        [
-                            f
-                            for f in supported_frequencies
-                            if f != (frequency or self.frequency)
-                        ]
+                        [f for f in supported_frequencies if f != (frequency or self.frequency)]
                         if (frequency or self.frequency) in supported_frequencies
                         else supported_frequencies
                     )
                     chosen_frequency = self.rng.choice(candidate_freqs)
-                logging.debug(
-                    f"Attempt {attempt + 1}: Using frequency {chosen_frequency} (seed={current_seed})"
-                )
+                logging.debug(f"Attempt {attempt + 1}: Using frequency {chosen_frequency} (seed={current_seed})")
 
-                values = self._generate_single_series(
-                    start, apply_augmentations, chosen_frequency
-                )
+                values = self._generate_single_series(start, apply_augmentations, chosen_frequency)
 
                 # Check if the generated series is acceptable
                 values = np.asarray(values)
                 if self._is_series_acceptable(values):
                     if attempt > 0:
-                        logging.debug(
-                            f"Generated acceptable series on attempt {attempt + 1}"
-                        )
+                        logging.debug(f"Generated acceptable series on attempt {attempt + 1}")
                     return values
                 else:
                     min_val = np.min(values) if len(values) > 0 else 0
@@ -417,9 +359,7 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
                     continue
 
             except Exception as e:
-                logging.debug(
-                    f"Attempt {attempt + 1}: Generation failed with error: {e}"
-                )
+                logging.debug(f"Attempt {attempt + 1}: Generation failed with error: {e}")
                 # Keep the last successfully generated values (if any) for fallback
                 continue
 
@@ -441,7 +381,7 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
         self,
         start: np.datetime64,
         apply_augmentations: bool = True,
-        frequency: Optional[Frequency] = None,
+        frequency: Frequency | None = None,
     ) -> np.ndarray:
         """
         Generate a single time series attempt (extracted from original generate_time_series).
@@ -449,9 +389,7 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
         # Use provided frequency or fall back to self.frequency
         effective_frequency = frequency if frequency is not None else self.frequency
 
-        freq_key, subfreq, timescale = FREQUENCY_MAPPING.get(
-            effective_frequency, ("D", "", 1)
-        )
+        freq_key, subfreq, timescale = FREQUENCY_MAPPING.get(effective_frequency, ("D", "", 1))
         freq = f"{subfreq}{freq_key}" if subfreq else freq_key
 
         # Seasonal component weights based on frequency
@@ -490,9 +428,7 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
         scale_config = ComponentScale(
             base=1.0,
             linear=self.rng.normal(0, 0.01),
-            exp=self._calculate_scaled_exp_base(timescale)
-            if self.params.trend_exp
-            else 1.0,
+            exp=self._calculate_scaled_exp_base(timescale) if self.params.trend_exp else 1.0,
             a=a,
             m=m,
             w=w,
@@ -531,9 +467,7 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
         }
 
         # Generate first series
-        series1 = self._make_series(
-            cfg, to_offset(freq), start, options, self.params.random_walk
-        )
+        series1 = self._make_series(cfg, to_offset(freq), start, options, self.params.random_walk)
 
         # Generate second series for transition if enabled
         transition = self.rng.random() < self.params.transition_ratio
@@ -542,9 +476,7 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
                 ComponentScale(
                     base=1.0,
                     linear=self.rng.normal(0, 0.01),
-                    exp=self._calculate_scaled_exp_base(timescale)
-                    if self.params.trend_exp
-                    else 1.0,
+                    exp=self._calculate_scaled_exp_base(timescale) if self.params.trend_exp else 1.0,
                     a=a,
                     m=m,
                     w=w,
@@ -569,9 +501,7 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
                     ),
                 ),
             )
-            series2 = self._make_series(
-                cfg2, to_offset(freq), start, options, self.params.random_walk
-            )
+            series2 = self._make_series(cfg2, to_offset(freq), start, options, self.params.random_walk)
             coeff = get_transition_coefficients(self.length)
             values = coeff * series1["values"] + (1 - coeff) * series2["values"]
         else:
@@ -592,7 +522,7 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
         start: np.datetime64,
         options: dict,
         random_walk: bool,
-    ) -> Dict:
+    ) -> dict:
         start = freq.rollback(start)
         dates = pd.date_range(start=start, periods=self.length, freq=freq)
         scaled_noise_term = 0
@@ -619,9 +549,7 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
                 rng=self.rng,
             )
             noise_expected_val = series.noise_config.median
-            scaled_noise_term = series.noise_config.scale * (
-                weibull_noise_term - noise_expected_val
-            )
+            scaled_noise_term = series.noise_config.scale * (weibull_noise_term - noise_expected_val)
             values = values * (1 + scaled_noise_term)
 
         return {
@@ -631,9 +559,7 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
             "seasonal": values_seasonal.get("seasonal", np.ones_like(values)),
         }
 
-    def _make_series_trend(
-        self, series: SeriesConfig, dates: pd.DatetimeIndex
-    ) -> np.ndarray:
+    def _make_series_trend(self, series: SeriesConfig, dates: pd.DatetimeIndex) -> np.ndarray:
         values = np.full_like(dates, series.scale.base, dtype=np.float32)
         days = (dates - dates[0]).days
         if series.scale.linear is not None:
@@ -643,24 +569,18 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
 
         return values
 
-    def _make_series_seasonal(
-        self, series: SeriesConfig, dates: pd.DatetimeIndex, options: dict
-    ) -> Dict:
+    def _make_series_seasonal(self, series: SeriesConfig, dates: pd.DatetimeIndex, options: dict) -> dict:
         seasonal = 1
         harmonic_scale = self.rng.random() < options["harmonic_scale_ratio"]
         harmonic_rate = options["harmonic_rate"]
         period_factor = options["period_factor"]
         seasonal_components = {}
         if series.scale.minute is not None and series.scale.minute != 0:
-            seasonal_components["minute"] = (
-                1
-                + series.scale.minute
-                * self._get_freq_component(
-                    dates.minute,
-                    int(np.ceil(10 * harmonic_rate)),
-                    60 * period_factor,
-                    harmonic_scale,
-                )
+            seasonal_components["minute"] = 1 + series.scale.minute * self._get_freq_component(
+                dates.minute,
+                int(np.ceil(10 * harmonic_rate)),
+                60 * period_factor,
+                harmonic_scale,
             )
             seasonal *= seasonal_components["minute"]
         if series.scale.h is not None and series.scale.h != 0:
@@ -717,10 +637,6 @@ class ForecastPFNGenerator(AbstractTimeSeriesGenerator):
         cos_coef /= coef_sq_sum
         return_val = 0
         for idx, harmonic in enumerate(harmonics):
-            return_val += sin_coef[idx] * np.sin(
-                2 * np.pi * harmonic * dates_feature / n_total
-            )
-            return_val += cos_coef[idx] * np.cos(
-                2 * np.pi * harmonic * dates_feature / n_total
-            )
+            return_val += sin_coef[idx] * np.sin(2 * np.pi * harmonic * dates_feature / n_total)
+            return_val += cos_coef[idx] * np.cos(2 * np.pi * harmonic * dates_feature / n_total)
         return return_val

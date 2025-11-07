@@ -2,7 +2,11 @@
 
 from .core import DatasetMetadata, EvaluationItem, expand_datasets_arg
 from .predictor import TimeSeriesPredictor
-from .results import aggregate_results, get_all_datasets_full_name, write_results_to_disk
+from .results import (
+    aggregate_results,
+    get_all_datasets_full_name,
+    write_results_to_disk,
+)
 
 __all__ = [
     "DatasetMetadata",

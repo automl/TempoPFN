@@ -18,13 +18,15 @@ def shift_axis(days, shift):
     return days - shift * days[-1]
 
 
-def get_random_walk_series(length, movements=[-1, 1], rng=None):
+def get_random_walk_series(length, movements=None, rng=None):
     """
     Function to generate a random walk series with a specified length
     """
+    if movements is None:
+        movements = [-1, 1]
     if rng is None:
         rng = np.random.default_rng()
-    random_walk = list()
+    random_walk = []
     random_walk.append(rng.choice(movements))
     for i in range(1, length):
         movement = rng.choice(movements)

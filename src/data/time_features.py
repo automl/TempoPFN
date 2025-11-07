@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -52,9 +52,7 @@ from src.data.frequency import (
 from src.utils.utils import device
 
 # Configure logging
-logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -193,9 +191,7 @@ class TimeFeatureGenerator:
         self.holiday_feature_set = None
         if use_holiday_features and holiday_set in HOLIDAY_FEATURE_SETS:
             kernel_func = self._get_holiday_kernel(holiday_kernel, holiday_kernel_alpha)
-            self.holiday_feature_set = SpecialDateFeatureSet(
-                HOLIDAY_FEATURE_SETS[holiday_set], kernel_func
-            )
+            self.holiday_feature_set = SpecialDateFeatureSet(HOLIDAY_FEATURE_SETS[holiday_set], kernel_func)
 
     def _get_holiday_kernel(self, kernel_type: str, alpha: float):
         """Get holiday kernel function."""
@@ -216,9 +212,7 @@ class TimeFeatureGenerator:
         else:
             return "low_freq"
 
-    def _compute_enhanced_features(
-        self, period_index: pd.PeriodIndex, freq_str: str
-    ) -> np.ndarray:
+    def _compute_enhanced_features(self, period_index: pd.PeriodIndex, freq_str: str) -> np.ndarray:
         """Compute enhanced time features based on frequency."""
         if not self.use_enhanced_features:
             return np.array([]).reshape(len(period_index), 0)
@@ -318,9 +312,7 @@ class TimeFeatureGenerator:
                 return []
 
             # Sort by magnitude and take top periods
-            sorted_indices = peak_indices[
-                np.argsort(fft_magnitudes[peak_indices])[::-1]
-            ]
+            sorted_indices = peak_indices[np.argsort(fft_magnitudes[peak_indices])[::-1]]
             top_indices = sorted_indices[: self.max_seasonal_periods]
 
             # Convert frequencies to periods
@@ -410,9 +402,7 @@ class TimeFeatureGenerator:
         try:
             standard_features = time_features_from_frequency_str(freq_str)
             if standard_features:
-                std_feat = np.stack(
-                    [feat(period_index) for feat in standard_features], axis=-1
-                )
+                std_feat = np.stack([feat(period_index) for feat in standard_features], axis=-1)
                 all_features.append(std_feat)
         except Exception:
             pass
@@ -428,9 +418,7 @@ class TimeFeatureGenerator:
             all_features.append(holiday_feat)
 
         # Seasonality features (including auto-detected)
-        seasonality_feat = self._compute_seasonality_features(
-            period_index, freq_str, time_series_values
-        )
+        seasonality_feat = self._compute_seasonality_features(period_index, freq_str, time_series_values)
         if seasonality_feat.shape[1] > 0:
             all_features.append(seasonality_feat)
 
@@ -443,13 +431,13 @@ class TimeFeatureGenerator:
 
 
 def compute_batch_time_features(
-    start: List[np.datetime64],
+    start: list[np.datetime64],
     history_length: int,
     future_length: int,
     batch_size: int,
-    frequency: List[Frequency],
+    frequency: list[Frequency],
     K_max: int = 6,
-    time_feature_config: Optional[Dict[str, Any]] = None,
+    time_feature_config: dict[str, Any] | None = None,
 ):
     """
     Compute time features from start timestamps and frequency.
@@ -500,37 +488,25 @@ def compute_batch_time_features(
             start_ts = BASE_START_DATE
 
         # Create history range with bounds checking
-        history_range = pd.date_range(
-            start=start_ts, periods=history_length, freq=freq_str
-        )
+        history_range = pd.date_range(start=start_ts, periods=history_length, freq=freq_str)
 
         # Check if history range goes beyond safe bounds
         if history_range[-1] > BASE_END_DATE:
-            safe_start = BASE_END_DATE - pd.tseries.frequencies.to_offset(freq_str) * (
-                history_length + future_length
-            )
+            safe_start = BASE_END_DATE - pd.tseries.frequencies.to_offset(freq_str) * (history_length + future_length)
             if safe_start < BASE_START_DATE:
                 safe_start = BASE_START_DATE
-            history_range = pd.date_range(
-                start=safe_start, periods=history_length, freq=freq_str
-            )
+            history_range = pd.date_range(start=safe_start, periods=history_length, freq=freq_str)
 
         future_start = history_range[-1] + pd.tseries.frequencies.to_offset(freq_str)
-        future_range = pd.date_range(
-            start=future_start, periods=future_length, freq=freq_str
-        )
+        future_range = pd.date_range(start=future_start, periods=future_length, freq=freq_str)
 
         # Convert to period indices
         history_period_idx = history_range.to_period(period_freq_str)
         future_period_idx = future_range.to_period(period_freq_str)
 
         # Compute enhanced features
-        history_features = feature_generator.compute_features(
-            history_period_idx, history_range, freq_str
-        )
-        future_features = feature_generator.compute_features(
-            future_period_idx, future_range, freq_str
-        )
+        history_features = feature_generator.compute_features(history_period_idx, history_range, freq_str)
+        future_features = feature_generator.compute_features(future_period_idx, future_range, freq_str)
 
         # Pad or truncate to K_max
         history_features = _pad_or_truncate_features(history_features, K_max)

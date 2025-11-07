@@ -1,7 +1,4 @@
-from typing import List, Optional, Set
-
 import numpy as np
-
 from src.synthetic_generation.abstract_classes import AbstractTimeSeriesGenerator
 from src.synthetic_generation.generator_params import (
     AnomalyGeneratorParams,
@@ -43,7 +40,7 @@ class AnomalyGenerator(AbstractTimeSeriesGenerator):
         else:
             return AnomalyType.SPIKE_DOWN
 
-    def _generate_spike_positions(self) -> List[List[int]]:
+    def _generate_spike_positions(self) -> list[list[int]]:
         """
         Generate spike positions:
         - Always create uniformly spaced single spikes (base schedule)
@@ -62,7 +59,7 @@ class AnomalyGenerator(AbstractTimeSeriesGenerator):
         base_positions = list(range(start_position, self.params.length, base_period))
 
         # Start with single-spike events at base positions
-        spike_events: List[List[int]] = [[pos] for pos in base_positions]
+        spike_events: list[list[int]] = [[pos] for pos in base_positions]
 
         if not base_positions:
             return spike_events
@@ -73,9 +70,7 @@ class AnomalyGenerator(AbstractTimeSeriesGenerator):
         # 25%: augment with clusters near some base spikes
         if series_draw < self.params.cluster_series_probability:
             num_base_events = len(base_positions)
-            num_to_augment = max(
-                1, int(round(self.params.cluster_event_fraction * num_base_events))
-            )
+            num_to_augment = max(1, int(round(self.params.cluster_event_fraction * num_base_events)))
             num_to_augment = min(num_to_augment, num_base_events)
 
             chosen_indices = (
@@ -87,9 +82,7 @@ class AnomalyGenerator(AbstractTimeSeriesGenerator):
             for idx in chosen_indices:
                 base_pos = base_positions[int(idx)]
                 # Number of additional spikes (1..3) per selected event
-                num_additional = np.random.randint(
-                    *self.params.cluster_additional_spikes_range
-                )
+                num_additional = np.random.randint(*self.params.cluster_additional_spikes_range)
                 if num_additional <= 0:
                     continue
 
@@ -101,7 +94,7 @@ class AnomalyGenerator(AbstractTimeSeriesGenerator):
                 )
                 offsets = [int(off) for off in offsets if off != 0]
 
-                cluster_positions: Set[int] = set([base_pos])
+                cluster_positions: set[int] = {base_pos}
                 for off in offsets:
                     pos = base_pos + off
                     if 0 <= pos < self.params.length:
@@ -110,23 +103,16 @@ class AnomalyGenerator(AbstractTimeSeriesGenerator):
                 spike_events[int(idx)] = sorted(cluster_positions)
 
         # Next 25%: add random single spikes across the series
-        elif series_draw < (
-            self.params.cluster_series_probability
-            + self.params.random_series_probability
-        ):
+        elif series_draw < (self.params.cluster_series_probability + self.params.random_series_probability):
             num_base_events = len(base_positions)
-            num_random = int(
-                round(self.params.random_spike_fraction_of_base * num_base_events)
-            )
+            num_random = int(round(self.params.random_spike_fraction_of_base * num_base_events))
             if num_random > 0:
                 all_indices = np.arange(self.params.length)
                 base_array = np.array(base_positions, dtype=int)
                 candidates = np.setdiff1d(all_indices, base_array, assume_unique=False)
                 if candidates.size > 0:
                     choose_n = min(num_random, candidates.size)
-                    rand_positions = np.random.choice(
-                        candidates, size=choose_n, replace=False
-                    )
+                    rand_positions = np.random.choice(candidates, size=choose_n, replace=False)
                     for pos in rand_positions:
                         spike_events.append([int(pos)])
 
@@ -154,9 +140,7 @@ class AnomalyGenerator(AbstractTimeSeriesGenerator):
         if self.params.magnitude_pattern == MagnitudePattern.CONSTANT:
             # All spikes have similar magnitude with small noise
             magnitudes = np.full(total_spikes, base_magnitude)
-            noise = np.random.normal(
-                0, self.params.magnitude_noise * base_magnitude, total_spikes
-            )
+            noise = np.random.normal(0, self.params.magnitude_noise * base_magnitude, total_spikes)
             magnitudes += noise
 
         elif self.params.magnitude_pattern == MagnitudePattern.INCREASING:
@@ -183,9 +167,7 @@ class AnomalyGenerator(AbstractTimeSeriesGenerator):
             if cycle_length == 0:
                 cycle_length = max(1, total_spikes // 4)
 
-            phase = np.linspace(
-                0, 2 * np.pi * total_spikes / cycle_length, total_spikes
-            )
+            phase = np.linspace(0, 2 * np.pi * total_spikes / cycle_length, total_spikes)
             cyclical_component = 0.3 * base_magnitude * np.sin(phase)
             magnitudes = base_magnitude + cyclical_component
 
@@ -205,9 +187,7 @@ class AnomalyGenerator(AbstractTimeSeriesGenerator):
                 )
 
         # Add noise to all patterns
-        noise = np.random.normal(
-            0, self.params.magnitude_noise * base_magnitude, total_spikes
-        )
+        noise = np.random.normal(0, self.params.magnitude_noise * base_magnitude, total_spikes)
         magnitudes += noise
 
         # Ensure magnitudes are positive and within reasonable bounds
@@ -217,9 +197,7 @@ class AnomalyGenerator(AbstractTimeSeriesGenerator):
 
         return magnitudes
 
-    def _inject_spike_anomalies(
-        self, signal: np.ndarray, spike_direction: AnomalyType
-    ) -> np.ndarray:
+    def _inject_spike_anomalies(self, signal: np.ndarray, spike_direction: AnomalyType) -> np.ndarray:
         """
         Inject spike anomalies into the clean signal using realistic patterns.
 
@@ -263,7 +241,7 @@ class AnomalyGenerator(AbstractTimeSeriesGenerator):
 
         return anomalous_signal
 
-    def generate_time_series(self, random_seed: Optional[int] = None) -> np.ndarray:
+    def generate_time_series(self, random_seed: int | None = None) -> np.ndarray:
         """
         Generate a synthetic time series with realistic spike anomalies.
 

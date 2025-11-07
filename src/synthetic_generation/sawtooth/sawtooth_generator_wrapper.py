@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 
@@ -19,7 +19,7 @@ class SawToothGeneratorWrapper(GeneratorWrapper):
         super().__init__(params)
         self.params: SawToothGeneratorParams = params
 
-    def _sample_parameters(self, batch_size: int) -> Dict[str, Any]:
+    def _sample_parameters(self, batch_size: int) -> dict[str, Any]:
         """
         Sample parameter values for batch generation with SawToothGenerator.
 
@@ -46,8 +46,8 @@ class SawToothGeneratorWrapper(GeneratorWrapper):
     def generate_batch(
         self,
         batch_size: int,
-        seed: Optional[int] = None,
-        params: Optional[Dict[str, Any]] = None,
+        seed: int | None = None,
+        params: dict[str, Any] | None = None,
     ) -> TimeSeriesContainer:
         """
         Generate a batch of synthetic multivariate time series using SawToothGenerator.

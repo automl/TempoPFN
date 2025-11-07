@@ -3,7 +3,6 @@
 import math
 from enum import Enum
 from functools import partial
-from typing import Optional
 
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
@@ -128,9 +127,7 @@ def _get_cosine_schedule_with_warmup_lr_lambda(
     if current_step < num_warmup_steps:
         return float(current_step) / float(max(1, num_warmup_steps))
 
-    progress = float(current_step - num_warmup_steps) / float(
-        max(1, num_training_steps - num_warmup_steps)
-    )
+    progress = float(current_step - num_warmup_steps) / float(max(1, num_training_steps - num_warmup_steps))
     cosine_factor = 0.5 * (1.0 + math.cos(math.pi * float(num_cycles) * 2.0 * progress))
     return max(min_lr_ratio, cosine_factor)
 
@@ -176,15 +173,11 @@ def _get_cosine_with_restarts_lr_lambda(
     if current_step < num_warmup_steps:
         return float(current_step) / float(max(1, num_warmup_steps))
 
-    progress = float(current_step - num_warmup_steps) / float(
-        max(1, num_training_steps - num_warmup_steps)
-    )
+    progress = float(current_step - num_warmup_steps) / float(max(1, num_training_steps - num_warmup_steps))
     if progress >= 1.0:
         return min_lr_ratio
 
-    cosine_factor = 0.5 * (
-        1.0 + math.cos(math.pi * ((float(num_cycles) * progress) % 1.0))
-    )
+    cosine_factor = 0.5 * (1.0 + math.cos(math.pi * ((float(num_cycles) * progress) % 1.0)))
     return max(min_lr_ratio, cosine_factor)
 
 
@@ -230,7 +223,7 @@ def get_scheduler(
     optimizer: Optimizer,
     num_warmup_steps: int,
     num_training_steps: int,
-    scheduler_kwargs: Optional[dict] = None,
+    scheduler_kwargs: dict | None = None,
 ):
     """
     Unified interface to create learning rate schedulers.
@@ -303,15 +296,11 @@ class WarmupStableDecayScheduler:
             return 1.0
         else:
             # Decay phase
-            decay_steps = (
-                self.total_steps - self.num_warmup_steps - self.num_stable_steps
-            )
+            decay_steps = self.total_steps - self.num_warmup_steps - self.num_stable_steps
             if decay_steps <= 0:
                 return max(self.min_lr_ratio, 1.0)
 
-            progress = (
-                step - self.num_warmup_steps - self.num_stable_steps
-            ) / decay_steps
+            progress = (step - self.num_warmup_steps - self.num_stable_steps) / decay_steps
             progress = min(progress, 1.0)
 
             if self.decay_type == "cosine":
@@ -327,14 +316,12 @@ class WarmupStableDecayScheduler:
         """Update learning rates for all parameter groups."""
         lr_factor = self.get_lr_factor(self.current_step)
 
-        for param_group, base_lr in zip(self.optimizer.param_groups, self.base_lrs):
+        for param_group, base_lr in zip(self.optimizer.param_groups, self.base_lrs, strict=True):
             param_group["lr"] = base_lr * lr_factor
 
         if self.verbose and self.current_step % 1000 == 0:
             phase = self.get_phase()
-            print(
-                f"Step {self.current_step}: LR factor = {lr_factor:.6f}, Phase = {phase}"
-            )
+            print(f"Step {self.current_step}: LR factor = {lr_factor:.6f}, Phase = {phase}")
 
         self.current_step += 1
 

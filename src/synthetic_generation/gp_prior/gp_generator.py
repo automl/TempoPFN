@@ -1,10 +1,8 @@
 import functools
-from typing import Dict, Optional
 
 import gpytorch
 import numpy as np
 import torch
-
 from src.data.frequency import FREQUENCY_MAPPING
 from src.synthetic_generation.generator_params import GPGeneratorParams
 from src.synthetic_generation.gp_prior.constants import (
@@ -36,7 +34,7 @@ class GPGenerator:
         self,
         params: GPGeneratorParams,
         length: int = 1024,
-        random_seed: Optional[int] = None,
+        random_seed: int | None = None,
     ):
         self.params = params
         self.length = length
@@ -57,8 +55,8 @@ class GPGenerator:
 
     def generate_time_series(
         self,
-        random_seed: Optional[int] = None,
-    ) -> Dict[str, np.ndarray]:
+        random_seed: int | None = None,
+    ) -> dict[str, np.ndarray]:
         with torch.inference_mode():
             if random_seed is not None:
                 self.rng = np.random.default_rng(random_seed)
@@ -71,15 +69,12 @@ class GPGenerator:
             else:
                 # Convert kernel_bank from {str: float} format to {int: (str, float)} format
                 kernel_bank = {
-                    i: (kernel_name, weight)
-                    for i, (kernel_name, weight) in enumerate(self.kernel_bank.items())
+                    i: (kernel_name, weight) for i, (kernel_name, weight) in enumerate(self.kernel_bank.items())
                 }
                 gaussians_periodic = self.gaussians_periodic
 
             # Map frequency to freq and subfreq
-            freq, subfreq, timescale = FREQUENCY_MAPPING.get(
-                self.frequency, ("D", "", 0)
-            )
+            freq, subfreq, timescale = FREQUENCY_MAPPING.get(self.frequency, ("D", "", 0))
 
             # Decide if using exact frequencies
             exact_freqs = self.rng.random() < self.periods_per_freq
@@ -87,9 +82,7 @@ class GPGenerator:
                 kernel_periods = KERNEL_PERIODS_BY_FREQ[freq]
                 if subfreq:
                     subfreq_int = int(subfreq)
-                    kernel_periods = [
-                        p // subfreq_int for p in kernel_periods if p >= subfreq_int
-                    ]
+                    kernel_periods = [p // subfreq_int for p in kernel_periods if p >= subfreq_int]
             else:
                 kernel_periods = self.kernel_periods
 
@@ -123,15 +116,9 @@ class GPGenerator:
             # Set up GP model
             train_x = torch.linspace(0, 1, self.length)
             trend = self.rng.choice([True, False])
-            mean_module = (
-                gpytorch.means.LinearMean(input_size=1)
-                if trend
-                else gpytorch.means.ConstantMean()
-            )
+            mean_module = gpytorch.means.LinearMean(input_size=1) if trend else gpytorch.means.ConstantMean()
             likelihood = gpytorch.likelihoods.GaussianLikelihood(
-                noise_covar=torch.diag(
-                    torch.full_like(train_x, self.likelihood_noise_level**2)
-                )
+                noise_covar=torch.diag(torch.full_like(train_x, self.likelihood_noise_level**2))
             )
             model = GPModel(train_x, None, likelihood, mean_module, composite_kernel)
 
@@ -152,9 +139,7 @@ class GPGenerator:
                         gpytorch.settings.cholesky_jitter(
                             max(noise * (10**attempt), 1e-4)
                         ),  # Increase jitter on retries, with a minimum floor
-                        gpytorch.settings.max_cholesky_size(
-                            self.length
-                        ),  # Limit decomposition size
+                        gpytorch.settings.max_cholesky_size(self.length),  # Limit decomposition size
                     ):
                         y_sample = model(train_x).sample().numpy()
                         # y_sample shape: (self.length,) (should be 1D)
@@ -166,17 +151,13 @@ class GPGenerator:
                         print("Generating fallback sample with simpler kernel")
                         # Create a simple RBF kernel as fallback
                         simple_kernel = gpytorch.kernels.RBFKernel()
-                        simple_model = GPModel(
-                            train_x, None, likelihood, mean_module, simple_kernel
-                        )
+                        simple_model = GPModel(train_x, None, likelihood, mean_module, simple_kernel)
                         simple_model.eval()
                         with torch.no_grad():
                             y_sample = simple_model(train_x).sample().numpy()
                         break
                     else:
-                        print(
-                            f"GP sampling attempt {attempt + 1} failed: {e}. Retrying with higher jitter..."
-                        )
+                        print(f"GP sampling attempt {attempt + 1} failed: {e}. Retrying with higher jitter...")
 
             # Optionally add peak spikes
             if self.rng.random() < self.peak_spike_ratio:
@@ -184,13 +165,9 @@ class GPGenerator:
                 if len(periodicities) > 0:
                     p = int(np.round(max(periodicities)))
                     spikes_type = self.rng.choice(["regular", "patchy"], p=[0.3, 0.7])
-                    spikes = generate_peak_spikes(
-                        self.length, p, spikes_type=spikes_type
-                    )
+                    spikes = generate_peak_spikes(self.length, p, spikes_type=spikes_type)
                     # y_sample is 1D, so use y_sample[:p].argmax()
-                    spikes_shift = (
-                        p - y_sample[:p].argmax() if p > 0 and p <= len(y_sample) else 0
-                    )
+                    spikes_shift = p - y_sample[:p].argmax() if p > 0 and p <= len(y_sample) else 0
                     spikes = np.roll(spikes, -spikes_shift)
                     if spikes.max() < 0:
                         y_sample = y_sample + spikes + 1

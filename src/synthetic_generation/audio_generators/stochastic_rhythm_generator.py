@@ -1,8 +1,5 @@
-from typing import Optional
-
 import numpy as np
 from pyo import Metro, Mix, Sine, TrigExpseg
-
 from src.synthetic_generation.abstract_classes import AbstractTimeSeriesGenerator
 from src.synthetic_generation.audio_generators.utils import (
     normalize_waveform,
@@ -29,7 +26,7 @@ class StochasticRhythmAudioGenerator(AbstractTimeSeriesGenerator):
         decay_range: tuple[float, float],
         tone_freq_range: tuple[float, float],
         tone_mul_range: tuple[float, float],
-        random_seed: Optional[int] = None,
+        random_seed: int | None = None,
     ):
         self.length = length
         self.server_duration = server_duration
@@ -48,15 +45,11 @@ class StochasticRhythmAudioGenerator(AbstractTimeSeriesGenerator):
 
     def _build_synth(self):
         base_tempo = self.rng.uniform(*self.base_tempo_hz_range)
-        num_layers = int(
-            self.rng.integers(self.num_layers_range[0], self.num_layers_range[1] + 1)
-        )
+        num_layers = int(self.rng.integers(self.num_layers_range[0], self.num_layers_range[1] + 1))
 
         layers = []
         for _ in range(num_layers):
-            subdivision = self.subdivisions[
-                int(self.rng.integers(0, len(self.subdivisions)))
-            ]
+            subdivision = self.subdivisions[int(self.rng.integers(0, len(self.subdivisions)))]
             rhythm_freq = base_tempo * subdivision
             trigger = Metro(time=1.0 / rhythm_freq).play()
 
@@ -71,7 +64,7 @@ class StochasticRhythmAudioGenerator(AbstractTimeSeriesGenerator):
 
         return Mix(layers, voices=1)
 
-    def generate_time_series(self, random_seed: Optional[int] = None) -> np.ndarray:
+    def generate_time_series(self, random_seed: int | None = None) -> np.ndarray:
         if random_seed is not None:
             self.rng = np.random.default_rng(random_seed)
 

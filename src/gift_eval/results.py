@@ -5,7 +5,6 @@ import csv
 import glob
 import logging
 from pathlib import Path
-from typing import List, Optional
 
 import pandas as pd
 
@@ -17,7 +16,6 @@ from src.gift_eval.constants import (
     STANDARD_METRIC_NAMES,
 )
 from src.gift_eval.core import DatasetMetadata, EvaluationItem
-
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +34,7 @@ def _ensure_results_csv(csv_file_path: Path) -> None:
 
 
 def write_results_to_disk(
-    items: List[EvaluationItem],
+    items: list[EvaluationItem],
     dataset_name: str,
     output_dir: Path,
     model_name: str,
@@ -56,17 +54,13 @@ def write_results_to_disk(
         writer = csv.writer(csvfile)
         for item in items:
             md: DatasetMetadata = item.dataset_metadata
-            metric_values: List[Optional[float]] = []
+            metric_values: list[float | None] = []
             for metric_name in STANDARD_METRIC_NAMES:
                 value = item.metrics.get(metric_name, None)
                 if value is None:
                     metric_values.append(None)
                 else:
-                    if (
-                        hasattr(value, "__len__")
-                        and not isinstance(value, (str, bytes))
-                        and len(value) == 1
-                    ):
+                    if hasattr(value, "__len__") and not isinstance(value, (str, bytes)) and len(value) == 1:
                         value = value[0]
                     elif hasattr(value, "item"):
                         value = value.item()
@@ -75,9 +69,7 @@ def write_results_to_disk(
             ds_key = md.key.lower()
             props = DATASET_PROPERTIES.get(ds_key, {})
             domain = props.get("domain", "unknown")
-            num_variates = props.get(
-                "num_variates", 1 if md.to_univariate else md.target_dim
-            )
+            num_variates = props.get("num_variates", 1 if md.to_univariate else md.target_dim)
 
             row = [md.full_name, model_name] + metric_values + [domain, num_variates]
             writer.writerow(row)
@@ -99,11 +91,11 @@ def write_results_to_disk(
         logger.info("Plots saved under %s", output_dir / "plots")
 
 
-def get_all_datasets_full_name() -> List[str]:
+def get_all_datasets_full_name() -> list[str]:
     """Get all possible dataset full names for validation."""
 
     terms = ["short", "medium", "long"]
-    datasets_full_names: List[str] = []
+    datasets_full_names: list[str] = []
 
     for name in ALL_DATASETS:
         for term in terms:
@@ -119,9 +111,7 @@ def get_all_datasets_full_name() -> List[str]:
                 ds_key = PRETTY_NAMES.get(ds_key, ds_key)
                 ds_freq = DATASET_PROPERTIES.get(ds_key, {}).get("frequency")
 
-            datasets_full_names.append(
-                f"{ds_key}/{ds_freq if ds_freq else 'unknown'}/{term}"
-            )
+            datasets_full_names.append(f"{ds_key}/{ds_freq if ds_freq else 'unknown'}/{term}")
 
     return datasets_full_names
 
@@ -139,7 +129,7 @@ def aggregate_results(result_root_dir: str | Path) -> pd.DataFrame | None:
         logger.error("No result files found!")
         return None
 
-    dataframes: List[pd.DataFrame] = []
+    dataframes: list[pd.DataFrame] = []
     for file in result_files:
         try:
             df = pd.read_csv(file)
@@ -159,26 +149,18 @@ def aggregate_results(result_root_dir: str | Path) -> pd.DataFrame | None:
     combined_df = pd.concat(dataframes, ignore_index=True).sort_values("dataset")
 
     if len(combined_df) != len(set(combined_df.dataset)):
-        duplicate_datasets = combined_df.dataset[
-            combined_df.dataset.duplicated()
-        ].tolist()
+        duplicate_datasets = combined_df.dataset[combined_df.dataset.duplicated()].tolist()
         logger.warning("Warning: Duplicate datasets found: %s", duplicate_datasets)
         combined_df = combined_df.drop_duplicates(subset=["dataset"], keep="first")
-        logger.info(
-            "Removed duplicates, %s unique datasets remaining", len(combined_df)
-        )
+        logger.info("Removed duplicates, %s unique datasets remaining", len(combined_df))
 
     logger.info("Combined results: %s datasets", len(combined_df))
 
     all_datasets_full_name = get_all_datasets_full_name()
     completed_experiments = combined_df.dataset.tolist()
 
-    completed_experiments_clean = [
-        exp for exp in completed_experiments if exp in all_datasets_full_name
-    ]
-    missing_or_failed_experiments = [
-        exp for exp in all_datasets_full_name if exp not in completed_experiments_clean
-    ]
+    completed_experiments_clean = [exp for exp in completed_experiments if exp in all_datasets_full_name]
+    missing_or_failed_experiments = [exp for exp in all_datasets_full_name if exp not in completed_experiments_clean]
 
     logger.info("=== EXPERIMENT SUMMARY ===")
     logger.info("Total expected datasets: %s", len(all_datasets_full_name))
@@ -195,9 +177,7 @@ def aggregate_results(result_root_dir: str | Path) -> pd.DataFrame | None:
             logger.info("  %3d: %s", idx, exp)
 
     completion_rate = (
-        len(completed_experiments_clean) / len(all_datasets_full_name) * 100
-        if all_datasets_full_name
-        else 0.0
+        len(completed_experiments_clean) / len(all_datasets_full_name) * 100 if all_datasets_full_name else 0.0
     )
     logger.info("Completion rate: %.1f%%", completion_rate)
 
@@ -218,9 +198,7 @@ __all__ = [
 def main() -> None:
     """CLI entry point for aggregating results from disk."""
 
-    parser = argparse.ArgumentParser(
-        description="Aggregate GIFT-Eval results from multiple CSV files"
-    )
+    parser = argparse.ArgumentParser(description="Aggregate GIFT-Eval results from multiple CSV files")
     parser.add_argument(
         "--result_root_dir",
         type=str,
@@ -231,13 +209,11 @@ def main() -> None:
     args = parser.parse_args()
     result_root_dir = Path(args.result_root_dir)
 
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     logger.info("Searching in directory: %s", result_root_dir)
 
     aggregate_results(result_root_dir=result_root_dir)
 
 
-if __name__ == "__main__":  
+if __name__ == "__main__":
     main()

@@ -1,5 +1,4 @@
 import logging
-from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,40 +17,30 @@ def calculate_smape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """Calculate Symmetric Mean Absolute Percentage Error (SMAPE)."""
     pred_tensor = torch.from_numpy(y_pred).float()
     true_tensor = torch.from_numpy(y_true).float()
-    return torchmetrics.SymmetricMeanAbsolutePercentageError()(
-        pred_tensor, true_tensor
-    ).item()
+    return torchmetrics.SymmetricMeanAbsolutePercentageError()(pred_tensor, true_tensor).item()
 
 
 def _create_date_ranges(
-    start: Optional[Union[np.datetime64, pd.Timestamp]],
-    frequency: Optional[Union[Frequency, str]],
+    start: np.datetime64 | pd.Timestamp | None,
+    frequency: Frequency | str | None,
     history_length: int,
     prediction_length: int,
-) -> Tuple[pd.DatetimeIndex, pd.DatetimeIndex]:
+) -> tuple[pd.DatetimeIndex, pd.DatetimeIndex]:
     """Create date ranges for history and future periods."""
     if start is not None and frequency is not None:
         start_timestamp = pd.Timestamp(start)
         pandas_freq = frequency.to_pandas_freq(for_date_range=True)
 
-        history_dates = pd.date_range(
-            start=start_timestamp, periods=history_length, freq=pandas_freq
-        )
+        history_dates = pd.date_range(start=start_timestamp, periods=history_length, freq=pandas_freq)
 
         if prediction_length > 0:
-            next_timestamp = history_dates[-1] + pd.tseries.frequencies.to_offset(
-                pandas_freq
-            )
-            future_dates = pd.date_range(
-                start=next_timestamp, periods=prediction_length, freq=pandas_freq
-            )
+            next_timestamp = history_dates[-1] + pd.tseries.frequencies.to_offset(pandas_freq)
+            future_dates = pd.date_range(start=next_timestamp, periods=prediction_length, freq=pandas_freq)
         else:
             future_dates = pd.DatetimeIndex([])
     else:
         # Fallback to default daily frequency
-        history_dates = pd.date_range(
-            end=pd.Timestamp.now(), periods=history_length, freq="D"
-        )
+        history_dates = pd.date_range(end=pd.Timestamp.now(), periods=history_length, freq="D")
 
         if prediction_length > 0:
             future_dates = pd.date_range(
@@ -71,16 +60,14 @@ def _plot_single_channel(
     history_dates: pd.DatetimeIndex,
     future_dates: pd.DatetimeIndex,
     history_values: np.ndarray,
-    future_values: Optional[np.ndarray] = None,
-    predicted_values: Optional[np.ndarray] = None,
-    lower_bound: Optional[np.ndarray] = None,
-    upper_bound: Optional[np.ndarray] = None,
+    future_values: np.ndarray | None = None,
+    predicted_values: np.ndarray | None = None,
+    lower_bound: np.ndarray | None = None,
+    upper_bound: np.ndarray | None = None,
 ) -> None:
     """Plot a single channel's time series data."""
     # Plot history
-    ax.plot(
-        history_dates, history_values[:, channel_idx], color="black", label="History"
-    )
+    ax.plot(history_dates, history_values[:, channel_idx], color="black", label="History")
 
     # Plot ground truth future
     if future_values is not None:
@@ -116,11 +103,9 @@ def _plot_single_channel(
     ax.grid(True, which="both", linestyle="--", linewidth=0.5)
 
 
-def _setup_figure(num_channels: int) -> Tuple[Figure, List[plt.Axes]]:
+def _setup_figure(num_channels: int) -> tuple[Figure, list[plt.Axes]]:
     """Create and configure the matplotlib figure and axes."""
-    fig, axes = plt.subplots(
-        num_channels, 1, figsize=(15, 3 * num_channels), sharex=True
-    )
+    fig, axes = plt.subplots(num_channels, 1, figsize=(15, 3 * num_channels), sharex=True)
     if num_channels == 1:
         axes = [axes]
     return fig, axes
@@ -128,10 +113,10 @@ def _setup_figure(num_channels: int) -> Tuple[Figure, List[plt.Axes]]:
 
 def _finalize_plot(
     fig: Figure,
-    axes: List[plt.Axes],
-    title: Optional[str] = None,
-    smape_value: Optional[float] = None,
-    output_file: Optional[str] = None,
+    axes: list[plt.Axes],
+    title: str | None = None,
+    smape_value: float | None = None,
+    output_file: str | None = None,
     show: bool = True,
 ) -> None:
     """Add legend, title, and save/show the plot."""
@@ -159,15 +144,15 @@ def _finalize_plot(
 
 def plot_multivariate_timeseries(
     history_values: np.ndarray,
-    future_values: Optional[np.ndarray] = None,
-    predicted_values: Optional[np.ndarray] = None,
-    start: Optional[Union[np.datetime64, pd.Timestamp]] = None,
-    frequency: Optional[Union[Frequency, str]] = None,
-    title: Optional[str] = None,
-    output_file: Optional[str] = None,
+    future_values: np.ndarray | None = None,
+    predicted_values: np.ndarray | None = None,
+    start: np.datetime64 | pd.Timestamp | None = None,
+    frequency: Frequency | str | None = None,
+    title: str | None = None,
+    output_file: str | None = None,
     show: bool = True,
-    lower_bound: Optional[np.ndarray] = None,
-    upper_bound: Optional[np.ndarray] = None,
+    lower_bound: np.ndarray | None = None,
+    upper_bound: np.ndarray | None = None,
 ) -> Figure:
     """Plot a multivariate time series with history, future, predictions, and uncertainty bands."""
     # Calculate SMAPE if both predicted and true values are available
@@ -188,9 +173,7 @@ def plot_multivariate_timeseries(
     )
 
     # Create date ranges
-    history_dates, future_dates = _create_date_ranges(
-        start, frequency, history_length, prediction_length
-    )
+    history_dates, future_dates = _create_date_ranges(start, frequency, history_length, prediction_length)
 
     # Setup figure
     fig, axes = _setup_figure(num_channels)
@@ -217,8 +200,8 @@ def plot_multivariate_timeseries(
 
 def _extract_quantile_predictions(
     predicted_values: np.ndarray,
-    model_quantiles: List[float],
-) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
+    model_quantiles: list[float],
+) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None]:
     """Extract median, lower, and upper bound predictions from quantile output."""
     try:
         median_idx = model_quantiles.index(0.5)
@@ -231,9 +214,7 @@ def _extract_quantile_predictions(
 
         return median_preds, lower_bound, upper_bound
     except (ValueError, IndexError):
-        logger.warning(
-            "Could not find 0.1, 0.5, 0.9 quantiles for plotting. Using median of available quantiles."
-        )
+        logger.warning("Could not find 0.1, 0.5, 0.9 quantiles for plotting. Using median of available quantiles.")
         median_preds = predicted_values[..., predicted_values.shape[-1] // 2]
         return median_preds, None, None
 
@@ -241,10 +222,10 @@ def _extract_quantile_predictions(
 def plot_from_container(
     batch: BatchTimeSeriesContainer,
     sample_idx: int,
-    predicted_values: Optional[np.ndarray] = None,
-    model_quantiles: Optional[List[float]] = None,
-    title: Optional[str] = None,
-    output_file: Optional[str] = None,
+    predicted_values: np.ndarray | None = None,
+    model_quantiles: list[float] | None = None,
+    title: str | None = None,
+    output_file: str | None = None,
     show: bool = True,
 ) -> Figure:
     """Plot a single sample from a BatchTimeSeriesContainer with proper quantile handling."""
@@ -256,8 +237,7 @@ def plot_from_container(
     if predicted_values is not None:
         # Handle batch vs single sample predictions
         if predicted_values.ndim >= 3 or (
-            predicted_values.ndim == 2
-            and predicted_values.shape[0] > future_values.shape[0]
+            predicted_values.ndim == 2 and predicted_values.shape[0] > future_values.shape[0]
         ):
             sample_preds = predicted_values[sample_idx]
         else:
@@ -265,9 +245,7 @@ def plot_from_container(
 
         # Extract quantile information if available
         if model_quantiles:
-            median_preds, lower_bound, upper_bound = _extract_quantile_predictions(
-                sample_preds, model_quantiles
-            )
+            median_preds, lower_bound, upper_bound = _extract_quantile_predictions(sample_preds, model_quantiles)
         else:
             median_preds = sample_preds
             lower_bound = None

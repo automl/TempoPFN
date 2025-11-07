@@ -7,7 +7,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -41,7 +41,7 @@ from src.synthetic_generation.generator_params import (
     FinancialVolatilityAudioParams,
     ForecastPFNGeneratorParams,
     GPGeneratorParams,
-    KernelGeneratorParams,  
+    KernelGeneratorParams,
     MultiScaleFractalAudioParams,
     NetworkTopologyAudioParams,
     OrnsteinUhlenbeckProcessGeneratorParams,
@@ -54,7 +54,7 @@ from src.synthetic_generation.generator_params import (
 from src.synthetic_generation.gp_prior.gp_generator_wrapper import GPGeneratorWrapper
 from src.synthetic_generation.kernel_synth.kernel_generator_wrapper import (
     KernelGeneratorWrapper,
-)   
+)
 from src.synthetic_generation.ornstein_uhlenbeck_process.ou_generator_wrapper import (
     OrnsteinUhlenbeckProcessGeneratorWrapper,
 )
@@ -114,7 +114,7 @@ class TimeSeriesDatasetManager:
         """Returns the total number of series found on disk at initialization."""
         return self.series_counter
 
-    def append_batch(self, batch_data: List[Dict[str, Any]]) -> None:
+    def append_batch(self, batch_data: list[dict[str, Any]]) -> None:
         """Appends a batch to a new file using an atomic rename for parallel safety."""
         if not batch_data:
             return
@@ -125,9 +125,7 @@ class TimeSeriesDatasetManager:
                 field_name = field.name
                 if field_name in ["start", "generation_timestamp"]:
                     timestamps = [d[field_name] for d in batch_data]
-                    arrays.append(
-                        pa.array([t.value for t in timestamps], type=pa.timestamp("ns"))
-                    )
+                    arrays.append(pa.array([t.value for t in timestamps], type=pa.timestamp("ns")))
                 else:
                     arrays.append(pa.array([d[field_name] for d in batch_data]))
             new_table = pa.Table.from_arrays(arrays, schema=self.schema)
@@ -137,36 +135,26 @@ class TimeSeriesDatasetManager:
 
         tmp_path = None
         try:
-            with tempfile.NamedTemporaryFile(
-                delete=False, dir=self.batches_dir, suffix=".arrow.tmp"
-            ) as tmp:
+            with tempfile.NamedTemporaryFile(delete=False, dir=self.batches_dir, suffix=".arrow.tmp") as tmp:
                 tmp_path = tmp.name
                 feather.write_feather(new_table, tmp_path)
 
             max_retries = 20
             for _ in range(max_retries):
                 existing = self.batches_dir.glob("batch_*.arrow")
-                batch_nums = [
-                    int(p.stem.split("_")[1])
-                    for p in existing
-                    if p.stem.split("_")[1].isdigit()
-                ]
+                batch_nums = [int(p.stem.split("_")[1]) for p in existing if p.stem.split("_")[1].isdigit()]
                 next_num = max(batch_nums) + 1 if batch_nums else 0
                 target_path = self.batches_dir / f"batch_{next_num:08d}.arrow"
                 try:
                     os.rename(tmp_path, target_path)
                     self.series_counter += len(batch_data)
-                    logging.info(
-                        f"Saved {target_path.name} with {len(batch_data)} series."
-                    )
+                    logging.info(f"Saved {target_path.name} with {len(batch_data)} series.")
                     return
                 except FileExistsError:
-                    logging.warning(
-                        f"Race condition on {target_path.name}. Retrying..."
-                    )
+                    logging.warning(f"Race condition on {target_path.name}. Retrying...")
                     time.sleep(random.uniform(0.1, 1.0))
 
-            raise IOError("Failed to write batch due to file conflicts.")
+            raise OSError("Failed to write batch due to file conflicts.")
         finally:
             if tmp_path and os.path.exists(tmp_path):
                 os.remove(tmp_path)
@@ -178,16 +166,14 @@ class GeneratorWrapper:
         generator_type: str,
         length: int = 2048,
         global_seed: int = 42,
-        num_channels: Optional[int] = None,
+        num_channels: int | None = None,
     ):
         self.generator_type = generator_type
         self.length = length
         self.is_multivariate = generator_type.lower() in [
             "cauker_multivariate",
         ]
-        self.explode_multivariate_to_univariate = (
-            generator_type.lower() == "cauker_univariate"
-        )
+        self.explode_multivariate_to_univariate = generator_type.lower() == "cauker_univariate"
         self._explode_channels = 0
 
         # Create appropriate parameter object and wrapper
@@ -233,9 +219,7 @@ class GeneratorWrapper:
             self._explode_channels = 6
         elif generator_type.lower() == "cauker_multivariate":
             effective_channels = (
-                int(num_channels)
-                if num_channels is not None
-                else CauKerGeneratorParams().num_channels  # type: ignore[arg-type]
+                int(num_channels) if num_channels is not None else CauKerGeneratorParams().num_channels  # type: ignore[arg-type]
             )
             params = CauKerGeneratorParams(
                 global_seed=global_seed,
@@ -295,18 +279,14 @@ class GeneratorWrapper:
         else:
             raise ValueError(f"Unsupported generator type: {generator_type}")
 
-    def generate_batch(self, batch_size: int, start_seed: int) -> List[Dict[str, Any]]:
+    def generate_batch(self, batch_size: int, start_seed: int) -> list[dict[str, Any]]:
         """Generate a batch of time series using the wrapper's batch generation."""
         try:
             if self.explode_multivariate_to_univariate and self._explode_channels > 0:
                 base_batch_size = int(np.ceil(batch_size / self._explode_channels))
-                container = self.wrapper.generate_batch(
-                    batch_size=base_batch_size, seed=start_seed
-                )
+                container = self.wrapper.generate_batch(batch_size=base_batch_size, seed=start_seed)
             else:
-                container = self.wrapper.generate_batch(
-                    batch_size=batch_size, seed=start_seed
-                )
+                container = self.wrapper.generate_batch(batch_size=batch_size, seed=start_seed)
 
             batch_data = []
             container_batch_size = container.values.shape[0]
@@ -316,14 +296,10 @@ class GeneratorWrapper:
                 if self.explode_multivariate_to_univariate:
                     series_data = container.values[i]
                     if series_data.ndim != 2:
-                        raise ValueError(
-                            "Expected multivariate data for CauKer univariate mode"
-                        )
+                        raise ValueError("Expected multivariate data for CauKer univariate mode")
                     num_channels = series_data.shape[1]
                     for channel in range(num_channels):
-                        channel_values = self._ensure_proper_format(
-                            series_data[:, channel]
-                        )
+                        channel_values = self._ensure_proper_format(series_data[:, channel])
                         values_list = [channel_values.tolist()]
                         batch_data.append(
                             {
@@ -341,10 +317,7 @@ class GeneratorWrapper:
                 elif self.is_multivariate:
                     series_data = container.values[i]
                     num_channels = series_data.shape[1]
-                    values_list = [
-                        self._ensure_proper_format(series_data[:, c]).tolist()
-                        for c in range(num_channels)
-                    ]
+                    values_list = [self._ensure_proper_format(series_data[:, c]).tolist() for c in range(num_channels)]
                     seq_length = len(values_list[0])
                 else:
                     values = self._ensure_proper_format(container.values[i, :])
@@ -377,9 +350,7 @@ class GeneratorWrapper:
     def _ensure_proper_format(self, values: Any) -> np.ndarray:
         values = np.asarray(values).flatten()
         if len(values) != self.length:
-            logging.warning(
-                f"Generated series length {len(values)} != expected {self.length}. Padding/truncating."
-            )
+            logging.warning(f"Generated series length {len(values)} != expected {self.length}. Padding/truncating.")
             if len(values) > self.length:
                 values = values[: self.length]
             else:
@@ -400,7 +371,7 @@ class ContinuousGenerator:
         self.batch_size = batch_size
         self.run_id = run_id
         self.series_in_run = 0
-        self.partial_batch_data: List[Dict[str, Any]] = []
+        self.partial_batch_data: list[dict[str, Any]] = []
         self.shutting_down = False
         logging.info(f"Generator initialized for run_id: {self.run_id}")
 
@@ -413,13 +384,9 @@ class ContinuousGenerator:
             if self.shutting_down:
                 return
             self.shutting_down = True
-            logging.warning(
-                f"\nSignal {signal.Signals(signum).name} received. Shutting down."
-            )
+            logging.warning(f"\nSignal {signal.Signals(signum).name} received. Shutting down.")
             if self.partial_batch_data:
-                logging.info(
-                    f"Saving incomplete batch of {len(self.partial_batch_data)} series..."
-                )
+                logging.info(f"Saving incomplete batch of {len(self.partial_batch_data)} series...")
                 try:
                     self.dataset_manager.append_batch(self.partial_batch_data)
                 except Exception as e:
@@ -447,9 +414,7 @@ class ContinuousGenerator:
             # Use modulo to ensure it stays within valid range
             series_id_start = (self.run_id + self.series_in_run) % (2**32)
 
-            new_chunk = self.generator_wrapper.generate_batch(
-                batch_size=chunk_size, start_seed=series_id_start
-            )
+            new_chunk = self.generator_wrapper.generate_batch(batch_size=chunk_size, start_seed=series_id_start)
 
             if not new_chunk:
                 logging.error("Generator failed to produce data. Stopping job.")
@@ -465,11 +430,7 @@ class ContinuousGenerator:
                 batches_completed += 1
 
                 elapsed = time.time() - start_time
-                series_per_sec = (
-                    (batches_completed * self.batch_size) / elapsed
-                    if elapsed > 0
-                    else 0
-                )
+                series_per_sec = (batches_completed * self.batch_size) / elapsed if elapsed > 0 else 0
                 print(
                     f"✓ Completed batch {batches_completed}/{num_batches_to_generate} in job | "
                     f"Total Series in DS: {self.dataset_manager.series_counter:,} | "
@@ -477,9 +438,7 @@ class ContinuousGenerator:
                 )
 
         if not self.shutting_down and self.partial_batch_data:
-            logging.info(
-                f"Job finished. Saving final partial batch of {len(self.partial_batch_data)}."
-            )
+            logging.info(f"Job finished. Saving final partial batch of {len(self.partial_batch_data)}.")
             self.dataset_manager.append_batch(self.partial_batch_data)
 
 
@@ -526,9 +485,7 @@ def main():
         required=True,
         help="Output directory for datasets",
     )
-    parser.add_argument(
-        "--length", type=int, default=2048, help="Length of each time series"
-    )
+    parser.add_argument("--length", type=int, default=2048, help="Length of each time series")
     parser.add_argument(
         "--batch-size",
         type=int,
@@ -559,13 +516,9 @@ def main():
     gen_name = args.generator.lower()
     if gen_name in ["cauker_multivariate"]:
         if args.num_channels is None or args.num_channels < 2:
-            logging.error(
-                "--num-channels (>=2) is required for multivariate generators"
-            )
+            logging.error("--num-channels (>=2) is required for multivariate generators")
             sys.exit(2)
-        dataset_dir_name = (
-            f"cauker_{args.num_channels}_variates"
-        )
+        dataset_dir_name = f"cauker_{args.num_channels}_variates"
     else:
         dataset_dir_name = args.generator
 
@@ -578,9 +531,7 @@ def main():
             global_seed=global_seed,
             num_channels=args.num_channels,
         )
-        dataset_manager = TimeSeriesDatasetManager(
-            str(output_path), batch_size=args.batch_size
-        )
+        dataset_manager = TimeSeriesDatasetManager(str(output_path), batch_size=args.batch_size)
         continuous_gen = ContinuousGenerator(
             generator_wrapper=generator_wrapper,
             dataset_manager=dataset_manager,

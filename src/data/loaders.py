@@ -1,6 +1,6 @@
 import logging
 import random
-from typing import Dict, Iterator, List, Optional
+from collections.abc import Iterator
 
 import numpy as np
 import pandas as pd
@@ -27,14 +27,14 @@ class GiftEvalDataLoader:
         self,
         mode: str = "train",
         batch_size: int = 32,
-        device: Optional[torch.device] = None,
+        device: torch.device | None = None,
         shuffle: bool = True,
         to_univariate: bool = False,
-        max_context_length: Optional[int] = None,
+        max_context_length: int | None = None,
         max_windows: int = 20,
         skip_datasets_with_nans: bool = False,
-        datasets_to_use: Optional[List[str]] = None,
-        dataset_storage_path: Optional[str] = None,
+        datasets_to_use: list[str] | None = None,
+        dataset_storage_path: str | None = None,
     ):
         """
         Initialize GIFT-eval data loader.
@@ -59,9 +59,7 @@ class GiftEvalDataLoader:
                 logger.warning(f"Invalid datasets requested: {invalid_datasets}")
                 logger.warning(f"Available datasets: {ALL_DATASETS}")
                 # Use only valid datasets
-                self.dataset_names = [
-                    ds for ds in datasets_to_use if ds in ALL_DATASETS
-                ]
+                self.dataset_names = [ds for ds in datasets_to_use if ds in ALL_DATASETS]
             else:
                 self.dataset_names = datasets_to_use
         else:
@@ -69,14 +67,10 @@ class GiftEvalDataLoader:
 
         # Log dataset selection
         if datasets_to_use is not None and len(datasets_to_use) > 0:
-            logger.info(
-                f"Using subset of datasets: {len(self.dataset_names)}/{len(ALL_DATASETS)} datasets"
-            )
+            logger.info(f"Using subset of datasets: {len(self.dataset_names)}/{len(ALL_DATASETS)} datasets")
             logger.info(f"Selected datasets: {self.dataset_names}")
         else:
-            logger.info(
-                f"Using all available datasets: {len(self.dataset_names)} datasets"
-            )
+            logger.info(f"Using all available datasets: {len(self.dataset_names)} datasets")
 
         self.terms = self.TERMS
         self.mode = mode
@@ -135,9 +129,7 @@ class GiftEvalDataLoader:
                     )
 
                     self.datasets[dataset_key] = dataset
-                    self.dataset_prediction_lengths[dataset_key] = (
-                        dataset.prediction_length
-                    )
+                    self.dataset_prediction_lengths[dataset_key] = dataset.prediction_length
 
                     logger.info(
                         f"Loaded {dataset_key} - prediction_length: {dataset.prediction_length}, "
@@ -160,13 +152,11 @@ class GiftEvalDataLoader:
             target_np = np.asarray(target, dtype=np.float32)
             return np.isnan(target_np).any()
         except Exception:
-            logger.warning(
-                "NaN check: failed to coerce target to float32; skipping entry"
-            )
+            logger.warning("NaN check: failed to coerce target to float32; skipping entry")
             return True
 
     def _convert_to_container(
-        self, data_entries: List[dict], prediction_length: int, dataset_freq: str
+        self, data_entries: list[dict], prediction_length: int, dataset_freq: str
     ) -> BatchTimeSeriesContainer:
         """Convert a batch of data entries to BatchTimeSeriesContainer format with fixed future length."""
         batch_size = len(data_entries)
@@ -181,18 +171,12 @@ class GiftEvalDataLoader:
             _, seq_len = target.shape
 
             # Only consider up to the last (max_context_length) values
-            effective_max_context = (
-                self.max_context_length
-                if self.max_context_length is not None
-                else seq_len
-            )
+            effective_max_context = self.max_context_length if self.max_context_length is not None else seq_len
             if seq_len > effective_max_context:
                 seq_len = effective_max_context
 
             # History is up to (max_context_length - prediction_length)
-            history_len = max(
-                0, min(seq_len, effective_max_context) - prediction_length
-            )
+            history_len = max(0, min(seq_len, effective_max_context) - prediction_length)
             max_history_len = max(max_history_len, history_len)
 
         # Get number of channels from first entry
@@ -203,12 +187,8 @@ class GiftEvalDataLoader:
         num_channels = first_target.shape[0]
 
         # Allocate arrays
-        history_values = np.full(
-            (batch_size, max_history_len, num_channels), np.nan, dtype=np.float32
-        )
-        future_values = np.full(
-            (batch_size, prediction_length, num_channels), np.nan, dtype=np.float32
-        )
+        history_values = np.full((batch_size, max_history_len, num_channels), np.nan, dtype=np.float32)
+        future_values = np.full((batch_size, prediction_length, num_channels), np.nan, dtype=np.float32)
         history_mask = np.zeros((batch_size, max_history_len), dtype=bool)
 
         # Second pass: fill arrays
@@ -219,26 +199,18 @@ class GiftEvalDataLoader:
 
             # Truncate to last effective_max_context points if needed
             full_seq_len = target.shape[1]
-            total_len_allowed = (
-                self.max_context_length
-                if self.max_context_length is not None
-                else full_seq_len
-            )
+            total_len_allowed = self.max_context_length if self.max_context_length is not None else full_seq_len
             total_len_for_entry = min(full_seq_len, total_len_allowed)
 
             if total_len_for_entry < prediction_length + 1:
                 # Not enough length to build (history + future). Signal to caller.
-                raise ValueError(
-                    "Entry too short after max_context_length truncation to form history+future window"
-                )
+                raise ValueError("Entry too short after max_context_length truncation to form history+future window")
 
             truncated = target[:, -total_len_for_entry:]
             cur_history_len = total_len_for_entry - prediction_length
 
             hist = truncated[:, :cur_history_len]  # [C, H]
-            fut = truncated[
-                :, cur_history_len : cur_history_len + prediction_length
-            ]  # [C, P]
+            fut = truncated[:, cur_history_len : cur_history_len + prediction_length]  # [C, P]
 
             # Write into batch arrays with time last -> transpose to [H, C] / [P, C]
             history_values[i, :cur_history_len, :] = hist.T
@@ -263,9 +235,7 @@ class GiftEvalDataLoader:
             future_values=torch.tensor(future_values, dtype=torch.float32),
             start=start_list,
             frequency=frequency_list,
-            history_mask=torch.tensor(history_mask, dtype=torch.bool)
-            if self.mode == "train"
-            else None,
+            history_mask=torch.tensor(history_mask, dtype=torch.bool) if self.mode == "train" else None,
         )
 
     def _prepare_epoch_data(self) -> None:
@@ -311,14 +281,10 @@ class GiftEvalDataLoader:
                 for i in range(0, len(valid_entries), self.batch_size):
                     batch_entries = valid_entries[i : i + self.batch_size]
                     try:
-                        batch_container = self._convert_to_container(
-                            batch_entries, prediction_length, dataset_freq
-                        )
+                        batch_container = self._convert_to_container(batch_entries, prediction_length, dataset_freq)
                         self._epoch_data.append((dataset_key, batch_container))
                     except Exception as e:
-                        logger.warning(
-                            f"Failed to create batch for {dataset_key}: {str(e)}"
-                        )
+                        logger.warning(f"Failed to create batch for {dataset_key}: {str(e)}")
                         continue
 
             except Exception as e:
@@ -419,17 +385,17 @@ def create_synthetic_dataloader(
     base_data_dir: str,
     batch_size: int = 128,
     num_batches_per_epoch: int = 1000,
-    generator_proportions: Optional[Dict[str, float]] = None,
+    generator_proportions: dict[str, float] | None = None,
     mixed_batches: bool = True,
-    augmentations: Optional[Dict[str, bool]] = None,
-    augmentation_probabilities: Optional[Dict[str, float]] = None,
-    device: Optional[torch.device] = None,
+    augmentations: dict[str, bool] | None = None,
+    augmentation_probabilities: dict[str, float] | None = None,
+    device: torch.device | None = None,
     num_workers: int = 0,
     pin_memory: bool = True,
     global_seed: int = 42,
-    nan_stats_path: Optional[str] = None,
-    nan_patterns_path: Optional[str] = None,
-    chosen_scaler_name: Optional[str] = None,
+    nan_stats_path: str | None = None,
+    nan_patterns_path: str | None = None,
+    chosen_scaler_name: str | None = None,
 ) -> torch.utils.data.DataLoader:
     """
     Create a PyTorch DataLoader for training with saved generator batches.
@@ -512,14 +478,14 @@ class SyntheticValidationDataset(torch.utils.data.Dataset):
         batch_size: int = 128,
         num_batches: int = 2,
         future_length: int = 512,
-        generator_proportions: Optional[Dict[str, float]] = None,
-        augmentations: Optional[Dict[str, bool]] = None,
-        augmentation_probabilities: Optional[Dict[str, float]] = None,
-        device: Optional[torch.device] = None,
+        generator_proportions: dict[str, float] | None = None,
+        augmentations: dict[str, bool] | None = None,
+        augmentation_probabilities: dict[str, float] | None = None,
+        device: torch.device | None = None,
         global_seed: int = 42,
-        chosen_scaler_name: Optional[str] = None,
-        nan_stats_path: Optional[str] = None,
-        nan_patterns_path: Optional[str] = None,
+        chosen_scaler_name: str | None = None,
+        nan_stats_path: str | None = None,
+        nan_patterns_path: str | None = None,
         rank: int = 0,
         world_size: int = 1,
     ):
@@ -564,15 +530,11 @@ class SyntheticValidationDataset(torch.utils.data.Dataset):
             batch, _ = self.batch_composer.create_batch(
                 batch_size=batch_size,
                 future_length=future_length,
-                seed=global_seed
-                + 999999
-                + i,  # Fixed seeds for reproducible validation
+                seed=global_seed + 999999 + i,  # Fixed seeds for reproducible validation
             )
             self.validation_batches.append(batch)
 
-        logger.info(
-            f"Created {num_batches} fixed validation batches with batch_size={batch_size}"
-        )
+        logger.info(f"Created {num_batches} fixed validation batches with batch_size={batch_size}")
 
     def __len__(self) -> int:
         return self.num_batches
@@ -603,14 +565,14 @@ def create_synthetic_dataset(
     base_data_dir: str,
     batch_size: int = 128,
     num_batches_per_epoch: int = 1000,
-    generator_proportions: Optional[Dict[str, float]] = None,
+    generator_proportions: dict[str, float] | None = None,
     mixed_batches: bool = True,
-    augmentations: Optional[Dict[str, bool]] = None,
-    augmentation_probabilities: Optional[Dict[str, float]] = None,
+    augmentations: dict[str, bool] | None = None,
+    augmentation_probabilities: dict[str, float] | None = None,
     global_seed: int = 42,
-    nan_stats_path: Optional[str] = None,
-    nan_patterns_path: Optional[str] = None,
-    chosen_scaler_name: Optional[str] = None,
+    nan_stats_path: str | None = None,
+    nan_patterns_path: str | None = None,
+    chosen_scaler_name: str | None = None,
     rank: int = 0,
     world_size: int = 1,
 ) -> ComposedDataset:

@@ -2,15 +2,13 @@ import logging
 import math
 from collections import Counter
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from joblib import Parallel, delayed
 from torch.quasirandom import SobolEngine
-import torch.nn.functional as F
-
 
 from src.gift_eval.data import Dataset
 
@@ -38,9 +36,7 @@ def analyze_datasets_for_augmentation(gift_eval_path_str: str) -> dict:
     Analyzes all datasets to derive statistics needed for NaN augmentation.
     This version collects the full distribution of NaN ratios.
     """
-    logger.info(
-        "--- Starting Dataset Analysis for Augmentation (Full Distribution) ---"
-    )
+    logger.info("--- Starting Dataset Analysis for Augmentation (Full Distribution) ---")
     path = Path(gift_eval_path_str)
     if not path.exists():
         raise FileNotFoundError(
@@ -79,18 +75,12 @@ def analyze_datasets_for_augmentation(gift_eval_path_str: str) -> dict:
                     nan_lengths = find_consecutive_nan_lengths(target)
                     all_consecutive_nan_lengths.update(nan_lengths)
         except Exception as e:
-            logger.warning(
-                f"Could not process {ds_name} for augmentation analysis: {e}"
-            )
+            logger.warning(f"Could not process {ds_name} for augmentation analysis: {e}")
 
     if total_series_count == 0:
-        raise ValueError(
-            "No series were found during augmentation analysis. Check dataset path."
-        )
+        raise ValueError("No series were found during augmentation analysis. Check dataset path.")
 
-    p_series_has_nan = (
-        series_with_nans_count / total_series_count if total_series_count > 0 else 0
-    )
+    p_series_has_nan = series_with_nans_count / total_series_count if total_series_count > 0 else 0
 
     logger.info("--- Augmentation Analysis Complete ---")
     # Print summary statistics
@@ -115,11 +105,11 @@ class NanAugmenter:
     def __init__(
         self,
         p_series_has_nan: float,
-        nan_ratio_distribution: List[float],
+        nan_ratio_distribution: list[float],
         nan_length_distribution: Counter,
         num_patterns: int = 100000,
         n_jobs: int = -1,
-        nan_patterns_path: Optional[str] = None,
+        nan_patterns_path: str | None = None,
     ):
         """
         Initializes the augmenter. NaN patterns are not generated at this stage.
@@ -138,7 +128,7 @@ class NanAugmenter:
         self.max_length = 2048
         self.nan_patterns_path = nan_patterns_path
         # Cache to store patterns: Dict[shape_tuple -> pattern_tensor]
-        self.pattern_cache: Dict[Tuple[int, ...], torch.BoolTensor] = {}
+        self.pattern_cache: dict[tuple[int, ...], torch.BoolTensor] = {}
 
         if not nan_length_distribution or sum(nan_length_distribution.values()) == 0:
             self._has_block_distribution = False
@@ -146,10 +136,8 @@ class NanAugmenter:
         else:
             self._has_block_distribution = True
             total_blocks = sum(nan_length_distribution.values())
-            self.dist_lengths = list(int(i) for i in nan_length_distribution.keys())
-            self.dist_probs = [
-                count / total_blocks for count in nan_length_distribution.values()
-            ]
+            self.dist_lengths = [int(i) for i in nan_length_distribution.keys()]
+            self.dist_probs = [count / total_blocks for count in nan_length_distribution.values()]
 
         if not self.nan_ratio_distribution:
             logger.warning("NaN ratio distribution is empty. Augmentation disabled.")
@@ -160,13 +148,11 @@ class NanAugmenter:
     def _load_existing_patterns(self):
         """Load existing NaN patterns from disk if they exist."""
         # Determine where to look for patterns
-        explicit_path: Optional[Path] = (
-            Path(self.nan_patterns_path).resolve()
-            if self.nan_patterns_path is not None
-            else None
+        explicit_path: Path | None = (
+            Path(self.nan_patterns_path).resolve() if self.nan_patterns_path is not None else None
         )
 
-        candidate_files: List[Path] = []
+        candidate_files: list[Path] = []
         if explicit_path is not None:
             # If the explicit path exists, use it directly
             if explicit_path.is_file():
@@ -174,20 +160,16 @@ class NanAugmenter:
             # Also search the directory of the explicit path for matching files
             explicit_dir = explicit_path.parent
             explicit_dir.mkdir(exist_ok=True, parents=True)
-            candidate_files.extend(
-                list(explicit_dir.glob(f"nan_patterns_{self.max_length}_*.pt"))
-            )
+            candidate_files.extend(list(explicit_dir.glob(f"nan_patterns_{self.max_length}_*.pt")))
         else:
             # Default to the ./data directory
             data_dir = Path("data")
             data_dir.mkdir(exist_ok=True)
-            candidate_files.extend(
-                list(data_dir.glob(f"nan_patterns_{self.max_length}_*.pt"))
-            )
+            candidate_files.extend(list(data_dir.glob(f"nan_patterns_{self.max_length}_*.pt")))
 
         # De-duplicate candidate files while preserving order
         seen: set[str] = set()
-        unique_candidates: List[Path] = []
+        unique_candidates: list[Path] = []
         for f in candidate_files:
             key = str(f.resolve())
             if key not in seen:
@@ -207,9 +189,7 @@ class NanAugmenter:
                     cache_key = (self.max_length, num_channels)
                     self.pattern_cache[cache_key] = patterns
 
-                    logger.info(
-                        f"Loaded {patterns.shape[0]} patterns for shape {cache_key} from {pattern_file}"
-                    )
+                    logger.info(f"Loaded {patterns.shape[0]} patterns for shape {cache_key} from {pattern_file}")
             except (ValueError, RuntimeError, FileNotFoundError) as e:
                 logger.warning(f"Failed to load patterns from {pattern_file}: {e}")
 
@@ -225,7 +205,7 @@ class NanAugmenter:
 
         return base_dir / f"nan_patterns_{self.max_length}_{num_channels}.pt"
 
-    def _generate_nan_mask(self, series_shape: Tuple[int, ...]) -> np.ndarray:
+    def _generate_nan_mask(self, series_shape: tuple[int, ...]) -> np.ndarray:
         """Generates a single boolean NaN mask for a given series shape."""
         series_size = int(np.prod(series_shape))
         sampled_ratio = np.random.choice(self.nan_ratio_distribution)
@@ -247,9 +227,7 @@ class NanAugmenter:
             if block_length <= 0:
                 break
 
-            nan_counts_in_window = np.convolve(
-                mask_flat, np.ones(block_length), mode="valid"
-            )
+            nan_counts_in_window = np.convolve(mask_flat, np.ones(block_length), mode="valid")
             valid_starts = np.where(nan_counts_in_window == 0)[0]
 
             if valid_starts.size == 0:
@@ -261,20 +239,15 @@ class NanAugmenter:
 
         return mask_flat.reshape(series_shape)
 
-    def _pregenerate_patterns(self, series_shape: Tuple[int, ...]) -> torch.BoolTensor:
+    def _pregenerate_patterns(self, series_shape: tuple[int, ...]) -> torch.BoolTensor:
         """Uses joblib to parallelize the generation of NaN masks for a given shape."""
         if not self._has_block_distribution or not self.nan_ratio_distribution:
             return torch.empty(0, *series_shape, dtype=torch.bool)
 
-        logger.info(
-            f"Generating {self.num_patterns} NaN patterns for shape {series_shape}..."
-        )
+        logger.info(f"Generating {self.num_patterns} NaN patterns for shape {series_shape}...")
 
         with Parallel(n_jobs=self.n_jobs, backend="loky") as parallel:
-            masks_list = parallel(
-                delayed(self._generate_nan_mask)(series_shape)
-                for _ in range(self.num_patterns)
-            )
+            masks_list = parallel(delayed(self._generate_nan_mask)(series_shape) for _ in range(self.num_patterns))
 
         logger.info(f"Pattern generation complete for shape {series_shape}.")
         return torch.from_numpy(np.stack(masks_list)).bool()
@@ -302,29 +275,19 @@ class NanAugmenter:
                 try:
                     patterns = torch.load(target_file, map_location="cpu")
                     self.pattern_cache[(self.max_length, num_channels)] = patterns
-                    logger.info(
-                        f"Loaded NaN patterns from {target_file} for shape {(self.max_length, num_channels)}"
-                    )
+                    logger.info(f"Loaded NaN patterns from {target_file} for shape {(self.max_length, num_channels)}")
                 except (RuntimeError, FileNotFoundError):
                     # Fall back to generating if loading fails
-                    patterns = self._pregenerate_patterns(
-                        (self.max_length, num_channels)
-                    )
+                    patterns = self._pregenerate_patterns((self.max_length, num_channels))
                     torch.save(patterns, target_file)
                     self.pattern_cache[(self.max_length, num_channels)] = patterns
-                    logger.info(
-                        f"Generated and saved {patterns.shape[0]} NaN patterns to {target_file}"
-                    )
+                    logger.info(f"Generated and saved {patterns.shape[0]} NaN patterns to {target_file}")
             else:
                 patterns = self._pregenerate_patterns((self.max_length, num_channels))
                 torch.save(patterns, target_file)
                 self.pattern_cache[(self.max_length, num_channels)] = patterns
-                logger.info(
-                    f"Generated and saved {patterns.shape[0]} NaN patterns to {target_file}"
-                )
-        patterns = self.pattern_cache[(self.max_length, num_channels)][
-            :, :history_length, :
-        ]
+                logger.info(f"Generated and saved {patterns.shape[0]} NaN patterns to {target_file}")
+        patterns = self.pattern_cache[(self.max_length, num_channels)][:, :history_length, :]
 
         # Early exit if patterns are empty (e.g., generation failed or was disabled)
         if patterns.numel() == 0:
@@ -342,15 +305,13 @@ class NanAugmenter:
             return time_series_batch
 
         # 3. Randomly sample patterns for each series being augmented
-        pattern_indices = torch.randint(
-            0, patterns.shape[0], (num_to_augment,), device=device
-        )
+        pattern_indices = torch.randint(0, patterns.shape[0], (num_to_augment,), device=device)
         # 4. Select patterns and apply them in a single vectorized operation
         selected_patterns = patterns[pattern_indices].to(device)
 
-        time_series_batch[indices_to_augment] = time_series_batch[
-            indices_to_augment
-        ].masked_fill(selected_patterns, float("nan"))
+        time_series_batch[indices_to_augment] = time_series_batch[indices_to_augment].masked_fill(
+            selected_patterns, float("nan")
+        )
 
         return time_series_batch
 
@@ -419,8 +380,8 @@ class QuantizationAugmenter:
     def __init__(
         self,
         p_quantize: float,
-        level_range: Tuple[int, int],
-        seed: Optional[int] = None,
+        level_range: tuple[int, int],
+        seed: int | None = None,
     ):
         """
         Initializes the augmenter.
@@ -433,9 +394,7 @@ class QuantizationAugmenter:
         """
         assert 0.0 <= p_quantize <= 1.0, "Probability must be between 0 and 1."
         assert level_range[0] >= 2, "Minimum number of levels must be at least 2."
-        assert level_range[0] <= level_range[1], (
-            "Min levels cannot be greater than max."
-        )
+        assert level_range[0] <= level_range[1], "Min levels cannot be greater than max."
 
         self.p_quantize = p_quantize
         self.level_range = level_range
@@ -445,9 +404,7 @@ class QuantizationAugmenter:
         max_intermediate_levels = self.level_range[1] - 2
         if max_intermediate_levels > 0:
             # SobolEngine must be created on CPU
-            self.sobol_engine = SobolEngine(
-                dimension=max_intermediate_levels, scramble=True, seed=seed
-            )
+            self.sobol_engine = SobolEngine(dimension=max_intermediate_levels, scramble=True, seed=seed)
         else:
             self.sobol_engine = None
 
@@ -480,9 +437,7 @@ class QuantizationAugmenter:
 
         # 2. Determine a variable n_levels for EACH series
         min_l, max_l = self.level_range
-        n_levels_per_series = torch.randint(
-            min_l, max_l + 1, size=(n_augment,), device=device
-        )
+        n_levels_per_series = torch.randint(min_l, max_l + 1, size=(n_augment,), device=device)
         max_levels_in_batch = n_levels_per_series.max().item()
 
         # 3. Find min/max for each series
@@ -547,7 +502,7 @@ class MixUpAugmenter:
         p_combine: float = 0.4,
         p_time_dependent: float = 0.5,
         randomize_k_per_series: bool = True,
-        dirichlet_alpha_range: Tuple[float, float] = (0.1, 5.0),
+        dirichlet_alpha_range: tuple[float, float] = (0.1, 5.0),
     ):
         """
         Initializes the augmenter.
@@ -568,13 +523,8 @@ class MixUpAugmenter:
         """
         assert max_n_series_to_combine >= 2, "Must combine at least 2 series."
         assert 0.0 <= p_combine <= 1.0, "p_combine must be between 0 and 1."
-        assert 0.0 <= p_time_dependent <= 1.0, (
-            "p_time_dependent must be between 0 and 1."
-        )
-        assert (
-            dirichlet_alpha_range[0] > 0
-            and dirichlet_alpha_range[0] <= dirichlet_alpha_range[1]
-        )
+        assert 0.0 <= p_time_dependent <= 1.0, "p_time_dependent must be between 0 and 1."
+        assert dirichlet_alpha_range[0] > 0 and dirichlet_alpha_range[0] <= dirichlet_alpha_range[1]
         self.max_k = max_n_series_to_combine
         self.p_combine = p_combine
         self.p_time_dependent = p_time_dependent
@@ -628,9 +578,9 @@ class MixUpAugmenter:
 
         # 3. Interpolate between the endpoint weights over time
         # Reshape for broadcasting: w vectors become [k, 1], ramp becomes [1, length]
-        time_varying_weights = w_start.unsqueeze(1) * (
-            1 - alpha_ramp.unsqueeze(0)
-        ) + w_end.unsqueeze(1) * alpha_ramp.unsqueeze(0)
+        time_varying_weights = w_start.unsqueeze(1) * (1 - alpha_ramp.unsqueeze(0)) + w_end.unsqueeze(
+            1
+        ) * alpha_ramp.unsqueeze(0)
         # The result `time_varying_weights` has shape [k, length]
 
         # 4. Apply the time-varying weights
@@ -641,26 +591,20 @@ class MixUpAugmenter:
             return mixed_series, time_varying_weights
         return mixed_series
 
-    def transform(
-        self, time_series_batch: torch.Tensor, return_debug_info: bool = False
-    ):
+    def transform(self, time_series_batch: torch.Tensor, return_debug_info: bool = False):
         """
         Applies the mixup augmentation, randomly choosing between static and
         time-dependent mixing methods.
         """
         with torch.no_grad():
             if self.p_combine == 0:
-                return (
-                    (time_series_batch, {}) if return_debug_info else time_series_batch
-                )
+                return (time_series_batch, {}) if return_debug_info else time_series_batch
 
             batch_size, _, _ = time_series_batch.shape
             device = time_series_batch.device
 
             if batch_size <= self.max_k:
-                return (
-                    (time_series_batch, {}) if return_debug_info else time_series_batch
-                )
+                return (time_series_batch, {}) if return_debug_info else time_series_batch
 
             # 1. Decide which series to replace
             augment_mask = torch.rand(batch_size, device=device) < self.p_combine
@@ -668,9 +612,7 @@ class MixUpAugmenter:
             n_augment = indices_to_replace.numel()
 
             if n_augment == 0:
-                return (
-                    (time_series_batch, {}) if return_debug_info else time_series_batch
-                )
+                return (time_series_batch, {}) if return_debug_info else time_series_batch
 
             # 2. Determine k for each series to augment
             if self.randomize_k:
@@ -699,14 +641,10 @@ class MixUpAugmenter:
 
                 # Randomly choose between static and time-dependent mixup
                 if torch.rand(1).item() < self.p_time_dependent:
-                    mixed_series, weights = self._simplex_path_mix(
-                        source_series, alpha=alpha, return_weights=True
-                    )
+                    mixed_series, weights = self._simplex_path_mix(source_series, alpha=alpha, return_weights=True)
                     mix_type = "simplex"
                 else:
-                    mixed_series, weights = self._static_mix(
-                        source_series, alpha=alpha, return_weights=True
-                    )
+                    mixed_series, weights = self._static_mix(source_series, alpha=alpha, return_weights=True)
 
                 new_series_list.append(mixed_series)
 
@@ -851,8 +789,8 @@ class DifferentialAugmenter:
     def __init__(
         self,
         p_transform: float,
-        gaussian_kernel_size_range: Tuple[int, int] = (5, 51),
-        gaussian_sigma_range: Tuple[float, float] = (2.0, 20.0),
+        gaussian_kernel_size_range: tuple[int, int] = (5, 51),
+        gaussian_sigma_range: tuple[float, float] = (2.0, 20.0),
     ):
         """
         Initializes the augmenter.
@@ -871,22 +809,15 @@ class DifferentialAugmenter:
         self.sigma_range = gaussian_sigma_range
 
         # Validate ranges
-        if not (
-            self.kernel_size_range[0] <= self.kernel_size_range[1]
-            and self.kernel_size_range[0] >= 3
-        ):
-            raise ValueError(
-                "Invalid kernel size range. Ensure min <= max and min >= 3."
-            )
+        if not (self.kernel_size_range[0] <= self.kernel_size_range[1] and self.kernel_size_range[0] >= 3):
+            raise ValueError("Invalid kernel size range. Ensure min <= max and min >= 3.")
         if not (self.sigma_range[0] <= self.sigma_range[1] and self.sigma_range[0] > 0):
             raise ValueError("Invalid sigma range. Ensure min <= max and min > 0.")
 
         # Cache for fixed-kernel convolution layers (Sobel, Laplace, etc.)
-        self.conv_cache: Dict[Tuple[int, torch.device], Dict[str, nn.Module]] = {}
+        self.conv_cache: dict[tuple[int, torch.device], dict[str, nn.Module]] = {}
 
-    def _create_fixed_kernel_layers(
-        self, num_channels: int, device: torch.device
-    ) -> dict:
+    def _create_fixed_kernel_layers(self, num_channels: int, device: torch.device) -> dict:
         """
         Creates and configures nn.Conv1d layers for fixed-kernel derivative operations.
         These layers are cached to improve performance.
@@ -933,14 +864,10 @@ class DifferentialAugmenter:
         )
 
         sobel_kernel = (
-            torch.tensor([-1, 0, 1], device=device, dtype=torch.float32)
-            .view(1, 1, -1)
-            .repeat(num_channels, 1, 1)
+            torch.tensor([-1, 0, 1], device=device, dtype=torch.float32).view(1, 1, -1).repeat(num_channels, 1, 1)
         )
         laplace_kernel = (
-            torch.tensor([1, -2, 1], device=device, dtype=torch.float32)
-            .view(1, 1, -1)
-            .repeat(num_channels, 1, 1)
+            torch.tensor([1, -2, 1], device=device, dtype=torch.float32).view(1, 1, -1).repeat(num_channels, 1, 1)
         )
         d3_kernel = (
             torch.tensor([-1, 2, 0, -2, 1], device=device, dtype=torch.float32)
@@ -995,9 +922,7 @@ class DifferentialAugmenter:
         gauss_conv.weight.requires_grad = False
         return gauss_conv
 
-    def _rescale_signal(
-        self, processed_signal: torch.Tensor, original_signal: torch.Tensor
-    ) -> torch.Tensor:
+    def _rescale_signal(self, processed_signal: torch.Tensor, original_signal: torch.Tensor) -> torch.Tensor:
         """Rescales the processed signal to match the min/max range of the original."""
         original_min = torch.amin(original_signal, dim=2, keepdim=True)
         original_max = torch.amax(original_signal, dim=2, keepdim=True)
@@ -1037,15 +962,11 @@ class DifferentialAugmenter:
             sigma = (min_s + (max_s - min_s) * torch.rand(1)).item()
 
             # --- Get/Create Convolution Layers ---
-            gauss_conv = self._create_gaussian_layer(
-                kernel_size, sigma, num_channels, device
-            )
+            gauss_conv = self._create_gaussian_layer(kernel_size, sigma, num_channels, device)
 
             cache_key = (num_channels, device)
             if cache_key not in self.conv_cache:
-                self.conv_cache[cache_key] = self._create_fixed_kernel_layers(
-                    num_channels, device
-                )
+                self.conv_cache[cache_key] = self._create_fixed_kernel_layers(num_channels, device)
             fixed_layers = self.conv_cache[cache_key]
 
             # --- Apply Augmentations ---
@@ -1070,33 +991,17 @@ class DifferentialAugmenter:
             flipped_subset = torch.flip(subset_permuted, dims=[2])
             right_integral = torch.flip(torch.cumsum(flipped_subset, dim=2), dims=[2])
             left_integral = torch.cumsum(subset_permuted, dim=2)
-            integral_result = torch.where(
-                use_right_integral, right_integral, left_integral
-            )
-            integral_result_normalized = self._rescale_signal(
-                integral_result, subset_permuted
-            )
+            integral_result = torch.where(use_right_integral, right_integral, left_integral)
+            integral_result_normalized = self._rescale_signal(integral_result, subset_permuted)
 
             # --- Assemble the results based on op_choices ---
             op_choices_view = op_choices.view(-1, 1, 1)
-            augmented_subset = torch.where(
-                op_choices_view == 0, gauss_result, subset_permuted
-            )
-            augmented_subset = torch.where(
-                op_choices_view == 1, sobel_result, augmented_subset
-            )
-            augmented_subset = torch.where(
-                op_choices_view == 2, laplace_result, augmented_subset
-            )
-            augmented_subset = torch.where(
-                op_choices_view == 3, integral_result_normalized, augmented_subset
-            )
-            augmented_subset = torch.where(
-                op_choices_view == 4, d3_result, augmented_subset
-            )
-            augmented_subset = torch.where(
-                op_choices_view == 5, d4_result, augmented_subset
-            )
+            augmented_subset = torch.where(op_choices_view == 0, gauss_result, subset_permuted)
+            augmented_subset = torch.where(op_choices_view == 1, sobel_result, augmented_subset)
+            augmented_subset = torch.where(op_choices_view == 2, laplace_result, augmented_subset)
+            augmented_subset = torch.where(op_choices_view == 3, integral_result_normalized, augmented_subset)
+            augmented_subset = torch.where(op_choices_view == 4, d3_result, augmented_subset)
+            augmented_subset = torch.where(op_choices_view == 5, d4_result, augmented_subset)
 
             augmented_subset_final = augmented_subset.permute(0, 2, 1)
             augmented_batch = time_series_batch.clone()
@@ -1118,11 +1023,11 @@ class RandomConvAugmenter:
     def __init__(
         self,
         p_transform: float = 0.5,
-        kernel_size_range: Tuple[int, int] = (3, 31),
-        dilation_range: Tuple[int, int] = (1, 8),
-        layer_range: Tuple[int, int] = (1, 3),
-        sigma_range: Tuple[float, float] = (0.5, 5.0),
-        bias_range: Tuple[float, float] = (-0.5, 0.5),
+        kernel_size_range: tuple[int, int] = (3, 31),
+        dilation_range: tuple[int, int] = (1, 8),
+        layer_range: tuple[int, int] = (1, 3),
+        sigma_range: tuple[float, float] = (0.5, 5.0),
+        bias_range: tuple[float, float] = (-0.5, 0.5),
     ):
         """
         Initializes the augmenter.
@@ -1138,9 +1043,7 @@ class RandomConvAugmenter:
                                                Gaussian kernels.
             bias_range (Tuple[float, float]): [min, max] range for the bias term.
         """
-        assert kernel_size_range[0] % 2 == 1 and kernel_size_range[1] % 2 == 1, (
-            "Kernel sizes must be odd."
-        )
+        assert kernel_size_range[0] % 2 == 1 and kernel_size_range[1] % 2 == 1, "Kernel sizes must be odd."
 
         self.p_transform = p_transform
         self.kernel_size_range = kernel_size_range
@@ -1150,9 +1053,7 @@ class RandomConvAugmenter:
         self.bias_range = bias_range
         self.padding_modes = ["reflect", "replicate", "circular"]
 
-    def _rescale_signal(
-        self, processed_signal: torch.Tensor, original_signal: torch.Tensor
-    ) -> torch.Tensor:
+    def _rescale_signal(self, processed_signal: torch.Tensor, original_signal: torch.Tensor) -> torch.Tensor:
         """Rescales the processed signal to match the min/max range of the original."""
         original_min = torch.amin(original_signal, dim=-1, keepdim=True)
         original_max = torch.amax(original_signal, dim=-1, keepdim=True)
@@ -1187,9 +1088,7 @@ class RandomConvAugmenter:
         num_channels = series.shape[1]
         device = series.device
 
-        num_layers = torch.randint(
-            self.layer_range[0], self.layer_range[1] + 1, (1,)
-        ).item()
+        num_layers = torch.randint(self.layer_range[0], self.layer_range[1] + 1, (1,)).item()
 
         processed_series = series
         for i in range(num_layers):
@@ -1241,9 +1140,7 @@ class RandomConvAugmenter:
             else:  # Noisy Sobel kernel
                 # Ensure kernel is large enough for a Sobel filter
                 actual_kernel_size = 3 if kernel_size < 3 else kernel_size
-                sobel_base = torch.tensor(
-                    [-1, 0, 1], dtype=torch.float32, device=device
-                )
+                sobel_base = torch.tensor([-1, 0, 1], dtype=torch.float32, device=device)
                 noise = torch.randn(3, device=device) * 0.1
                 noisy_sobel = sobel_base + noise
                 # Pad if the random kernel size is larger than 3
@@ -1302,9 +1199,7 @@ class RandomConvAugmenter:
                 original_series = subset_permuted[i : i + 1]
                 augmented_series = self._apply_random_conv_stack(original_series)
 
-                rescaled_series = self._rescale_signal(
-                    augmented_series.squeeze(0), original_series.squeeze(0)
-                )
+                rescaled_series = self._rescale_signal(augmented_series.squeeze(0), original_series.squeeze(0))
                 augmented_subset_list.append(rescaled_series.unsqueeze(0))
 
             if augmented_subset_list:

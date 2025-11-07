@@ -1,7 +1,4 @@
-from typing import Optional
-
 import numpy as np
-
 from src.data.containers import TimeSeriesContainer
 from src.synthetic_generation.abstract_classes import GeneratorWrapper
 from src.synthetic_generation.generator_params import (
@@ -19,9 +16,7 @@ class OrnsteinUhlenbeckProcessGeneratorWrapper(GeneratorWrapper):
         super().__init__(params)
         self.generator = OrnsteinUhlenbeckProcessGenerator(params)
 
-    def generate_batch(
-        self, batch_size: int, seed: Optional[int] = None
-    ) -> TimeSeriesContainer:
+    def generate_batch(self, batch_size: int, seed: int | None = None) -> TimeSeriesContainer:
         if seed is not None:
             self._set_random_seeds(seed)
 

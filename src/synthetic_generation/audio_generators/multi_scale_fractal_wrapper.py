@@ -1,7 +1,6 @@
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
-
 from src.data.containers import TimeSeriesContainer
 from src.synthetic_generation.abstract_classes import GeneratorWrapper
 from src.synthetic_generation.audio_generators.multi_scale_fractal_generator import (
@@ -15,7 +14,7 @@ class MultiScaleFractalAudioWrapper(GeneratorWrapper):
         super().__init__(params)
         self.params: MultiScaleFractalAudioParams = params
 
-    def _sample_parameters(self, batch_size: int) -> Dict[str, Any]:
+    def _sample_parameters(self, batch_size: int) -> dict[str, Any]:
         params = super()._sample_parameters(batch_size)
         params.update(
             {
@@ -35,8 +34,8 @@ class MultiScaleFractalAudioWrapper(GeneratorWrapper):
     def generate_batch(
         self,
         batch_size: int,
-        seed: Optional[int] = None,
-        params: Optional[Dict[str, Any]] = None,
+        seed: int | None = None,
+        params: dict[str, Any] | None = None,
     ) -> TimeSeriesContainer:
         if seed is not None:
             self._set_random_seeds(seed)

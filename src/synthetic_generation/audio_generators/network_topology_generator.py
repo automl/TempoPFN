@@ -1,8 +1,5 @@
-from typing import Optional, Tuple
-
 import numpy as np
 from pyo import LFO, BrownNoise, Metro, Mix, Noise, TrigExpseg
-
 from src.synthetic_generation.abstract_classes import AbstractTimeSeriesGenerator
 from src.synthetic_generation.audio_generators.utils import (
     normalize_waveform,
@@ -33,11 +30,9 @@ class NetworkTopologyAudioGenerator(AbstractTimeSeriesGenerator):
         overhead_lfo_freq_range: tuple[float, float],
         overhead_mul_range: tuple[float, float],
         attack_period_range: tuple[float, float],
-        attack_env_points: Tuple[
-            Tuple[float, float], Tuple[float, float], Tuple[float, float]
-        ],
+        attack_env_points: tuple[tuple[float, float], tuple[float, float], tuple[float, float]],
         attack_mul_range: tuple[float, float],
-        random_seed: Optional[int] = None,
+        random_seed: int | None = None,
     ):
         self.length = length
         self.server_duration = server_duration
@@ -98,7 +93,7 @@ class NetworkTopologyAudioGenerator(AbstractTimeSeriesGenerator):
 
         return Mix([traffic_base, bursts, congestion_env, overhead, attacks], voices=1)
 
-    def generate_time_series(self, random_seed: Optional[int] = None) -> np.ndarray:
+    def generate_time_series(self, random_seed: int | None = None) -> np.ndarray:
         if random_seed is not None:
             self.rng = np.random.default_rng(random_seed)
 

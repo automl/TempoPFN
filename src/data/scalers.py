@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
 
 import torch
 
@@ -14,26 +13,22 @@ class BaseScaler(ABC):
 
     @abstractmethod
     def compute_statistics(
-        self, history_values: torch.Tensor, history_mask: Optional[torch.Tensor] = None
-    ) -> Dict[str, torch.Tensor]:
+        self, history_values: torch.Tensor, history_mask: torch.Tensor | None = None
+    ) -> dict[str, torch.Tensor]:
         """
         Compute scaling statistics from historical data.
         """
         pass
 
     @abstractmethod
-    def scale(
-        self, data: torch.Tensor, statistics: Dict[str, torch.Tensor]
-    ) -> torch.Tensor:
+    def scale(self, data: torch.Tensor, statistics: dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Apply scaling transformation to data.
         """
         pass
 
     @abstractmethod
-    def inverse_scale(
-        self, scaled_data: torch.Tensor, statistics: Dict[str, torch.Tensor]
-    ) -> torch.Tensor:
+    def inverse_scale(self, scaled_data: torch.Tensor, statistics: dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Apply inverse scaling transformation to recover original scale.
         """
@@ -54,8 +49,8 @@ class RobustScaler(BaseScaler):
         self.min_scale = min_scale
 
     def compute_statistics(
-        self, history_values: torch.Tensor, history_mask: Optional[torch.Tensor] = None
-    ) -> Dict[str, torch.Tensor]:
+        self, history_values: torch.Tensor, history_mask: torch.Tensor | None = None
+    ) -> dict[str, torch.Tensor]:
         """
         Compute median and IQR statistics from historical data with improved numerical stability.
         """
@@ -91,49 +86,37 @@ class RobustScaler(BaseScaler):
                         q75 = torch.quantile(valid_data, 0.75)
                         q25 = torch.quantile(valid_data, 0.25)
                         iqr_val = q75 - q25
-                        iqr_val = torch.max(
-                            iqr_val, torch.tensor(self.min_scale, device=device)
-                        )
+                        iqr_val = torch.max(iqr_val, torch.tensor(self.min_scale, device=device))
                         iqrs[b, 0, c] = iqr_val
                     except Exception:
                         std_val = torch.std(valid_data)
-                        iqrs[b, 0, c] = torch.max(
-                            std_val, torch.tensor(self.min_scale, device=device)
-                        )
+                        iqrs[b, 0, c] = torch.max(std_val, torch.tensor(self.min_scale, device=device))
                 else:
                     iqrs[b, 0, c] = self.min_scale
 
         return {"median": medians, "iqr": iqrs}
 
-    def scale(
-        self, data: torch.Tensor, statistics: Dict[str, torch.Tensor]
-    ) -> torch.Tensor:
+    def scale(self, data: torch.Tensor, statistics: dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Apply robust scaling: (data - median) / (iqr + epsilon).
         """
         median = statistics["median"]
         iqr = statistics["iqr"]
 
-        denominator = torch.max(
-            iqr + self.epsilon, torch.tensor(self.min_scale, device=iqr.device)
-        )
+        denominator = torch.max(iqr + self.epsilon, torch.tensor(self.min_scale, device=iqr.device))
         scaled_data = (data - median) / denominator
         scaled_data = torch.clamp(scaled_data, -50.0, 50.0)
 
         return scaled_data
 
-    def inverse_scale(
-        self, scaled_data: torch.Tensor, statistics: Dict[str, torch.Tensor]
-    ) -> torch.Tensor:
+    def inverse_scale(self, scaled_data: torch.Tensor, statistics: dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Apply inverse robust scaling, now compatible with 3D or 4D tensors.
         """
         median = statistics["median"]
         iqr = statistics["iqr"]
 
-        denominator = torch.max(
-            iqr + self.epsilon, torch.tensor(self.min_scale, device=iqr.device)
-        )
+        denominator = torch.max(iqr + self.epsilon, torch.tensor(self.min_scale, device=iqr.device))
 
         if scaled_data.ndim == 4:
             denominator = denominator.unsqueeze(-1)
@@ -153,8 +136,8 @@ class MinMaxScaler(BaseScaler):
         self.epsilon = epsilon
 
     def compute_statistics(
-        self, history_values: torch.Tensor, history_mask: Optional[torch.Tensor] = None
-    ) -> Dict[str, torch.Tensor]:
+        self, history_values: torch.Tensor, history_mask: torch.Tensor | None = None
+    ) -> dict[str, torch.Tensor]:
         """
         Compute min and max statistics from historical data.
         """
@@ -188,9 +171,7 @@ class MinMaxScaler(BaseScaler):
 
         return {"min": mins, "max": maxs}
 
-    def scale(
-        self, data: torch.Tensor, statistics: Dict[str, torch.Tensor]
-    ) -> torch.Tensor:
+    def scale(self, data: torch.Tensor, statistics: dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Apply min-max scaling to range [-1, 1].
         """
@@ -200,9 +181,7 @@ class MinMaxScaler(BaseScaler):
         normalized = (data - min_val) / (max_val - min_val + self.epsilon)
         return normalized * 2.0 - 1.0
 
-    def inverse_scale(
-        self, scaled_data: torch.Tensor, statistics: Dict[str, torch.Tensor]
-    ) -> torch.Tensor:
+    def inverse_scale(self, scaled_data: torch.Tensor, statistics: dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Apply inverse min-max scaling, now compatible with 3D or 4D tensors.
         """
@@ -225,8 +204,8 @@ class MeanScaler(BaseScaler):
     """
 
     def compute_statistics(
-            self, history_values: torch.Tensor, history_mask: Optional[torch.Tensor] = None
-    ) -> Dict[str, torch.Tensor]:
+        self, history_values: torch.Tensor, history_mask: torch.Tensor | None = None
+    ) -> dict[str, torch.Tensor]:
         """
         Compute the mean for each channel from historical data.
         """
@@ -262,18 +241,14 @@ class MeanScaler(BaseScaler):
 
         return {"mean": means}
 
-    def scale(
-            self, data: torch.Tensor, statistics: Dict[str, torch.Tensor]
-    ) -> torch.Tensor:
+    def scale(self, data: torch.Tensor, statistics: dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Apply mean centering: data - mean.
         """
         mean = statistics["mean"]
         return data - mean
 
-    def inverse_scale(
-            self, scaled_data: torch.Tensor, statistics: Dict[str, torch.Tensor]
-    ) -> torch.Tensor:
+    def inverse_scale(self, scaled_data: torch.Tensor, statistics: dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Apply inverse mean centering: scaled_data + mean.
 
@@ -297,8 +272,8 @@ class MedianScaler(BaseScaler):
     """
 
     def compute_statistics(
-            self, history_values: torch.Tensor, history_mask: Optional[torch.Tensor] = None
-    ) -> Dict[str, torch.Tensor]:
+        self, history_values: torch.Tensor, history_mask: torch.Tensor | None = None
+    ) -> dict[str, torch.Tensor]:
         """
         Compute the median for each channel from historical data.
         """
@@ -334,18 +309,14 @@ class MedianScaler(BaseScaler):
 
         return {"median": medians}
 
-    def scale(
-            self, data: torch.Tensor, statistics: Dict[str, torch.Tensor]
-    ) -> torch.Tensor:
+    def scale(self, data: torch.Tensor, statistics: dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Apply median centering: data - median.
         """
         median = statistics["median"]
         return data - median
 
-    def inverse_scale(
-            self, scaled_data: torch.Tensor, statistics: Dict[str, torch.Tensor]
-    ) -> torch.Tensor:
+    def inverse_scale(self, scaled_data: torch.Tensor, statistics: dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Apply inverse median centering: scaled_data + median.
 

@@ -1,5 +1,3 @@
-from typing import Dict, Optional, Tuple, Union
-
 import numpy as np
 
 from src.synthetic_generation.abstract_classes import AbstractTimeSeriesGenerator
@@ -17,22 +15,17 @@ class SawToothGenerator(AbstractTimeSeriesGenerator):
     def __init__(
         self,
         length: int = 2048,
-        periods: Tuple[int, int] = (3, 6),
-        amplitude_range: Union[
-            Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
-        ] = (0.5, 3.0),
-        phase_range: Union[
-            Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
-        ] = (0.0, 1.0),
-        trend_slope_range: Union[
-            Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
-        ] = (-0.001, 0.001),
-        seasonality_amplitude_range: Union[
-            Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
-        ] = (0.0, 0.02),
+        periods: tuple[int, int] = (3, 6),
+        amplitude_range: tuple[float, float] | tuple[tuple[float, float], tuple[float, float]] = (0.5, 3.0),
+        phase_range: tuple[float, float] | tuple[tuple[float, float], tuple[float, float]] = (0.0, 1.0),
+        trend_slope_range: tuple[float, float] | tuple[tuple[float, float], tuple[float, float]] = (-0.001, 0.001),
+        seasonality_amplitude_range: tuple[float, float] | tuple[tuple[float, float], tuple[float, float]] = (
+            0.0,
+            0.02,
+        ),
         add_trend: bool = True,
         add_seasonality: bool = True,
-        random_seed: Optional[int] = None,
+        random_seed: int | None = None,
     ):
         """
         Parameters
@@ -42,13 +35,21 @@ class SawToothGenerator(AbstractTimeSeriesGenerator):
         periods : tuple, optional
             (min_periods, max_periods) for number of sawtooth periods in the series (default: (3, 6)).
         amplitude_range : tuple, optional
-            (min_amplitude, max_amplitude) or ((min_min, min_max), (max_min, max_max)) for sawtooth wave amplitude (default: (0.5, 3.0)).
+            (min_amplitude, max_amplitude) or
+            ((min_min, min_max), (max_min, max_max)) for sawtooth wave amplitude
+            (default: (0.5, 3.0)).
         phase_range : tuple, optional
-            (min_phase, max_phase) or ((min_min, min_max), (max_min, max_max)) for sawtooth wave phase as fraction of period (default: (0.0, 1.0)).
+            (min_phase, max_phase) or
+            ((min_min, min_max), (max_min, max_max)) for sawtooth wave phase as
+            fraction of period (default: (0.0, 1.0)).
         trend_slope_range : tuple, optional
-            (min_slope, max_slope) or ((min_min, min_max), (max_min, max_max)) for linear trend slope, emphasizing straight line components (default: (-0.001, 0.001)).
+            (min_slope, max_slope) or
+            ((min_min, min_max), (max_min, max_max)) for linear trend slope,
+            emphasizing straight line components (default: (-0.001, 0.001)).
         seasonality_amplitude_range : tuple, optional
-            (min_amplitude, max_amplitude) or ((min_min, min_max), (max_min, max_max)) for minimal seasonal component amplitude to reduce wiggly lines (default: (0.0, 0.02)).
+            (min_amplitude, max_amplitude) or
+            ((min_min, min_max), (max_min, max_max)) for minimal seasonal
+            component amplitude to reduce wiggly lines (default: (0.0, 0.02)).
         add_trend : bool, optional
             Whether to add linear trend component (default: True).
         add_seasonality : bool, optional
@@ -115,16 +116,12 @@ class SawToothGenerator(AbstractTimeSeriesGenerator):
         """Generate linear trend component."""
         return slope * time_idx.astype(float)
 
-    def _generate_seasonality(
-        self, time_idx: np.ndarray, amplitude: float, period: float
-    ) -> np.ndarray:
+    def _generate_seasonality(self, time_idx: np.ndarray, amplitude: float, period: float) -> np.ndarray:
         """Generate seasonal component using sine wave."""
         time = time_idx.astype(float)
         return amplitude * np.sin(2 * np.pi * time / period)
 
-    def generate_time_series(
-        self, random_seed: Optional[int] = None
-    ) -> Dict[str, np.ndarray]:
+    def generate_time_series(self, random_seed: int | None = None) -> dict[str, np.ndarray]:
         """
         Generate a single univariate sawtooth wave time series.
 
@@ -145,9 +142,7 @@ class SawToothGenerator(AbstractTimeSeriesGenerator):
         sampled_amplitude_range = self._sample_range_parameter(self.amplitude_range)
         sampled_phase_range = self._sample_range_parameter(self.phase_range)
 
-        amplitude = self.rng.uniform(
-            sampled_amplitude_range[0], sampled_amplitude_range[1]
-        )
+        amplitude = self.rng.uniform(sampled_amplitude_range[0], sampled_amplitude_range[1])
         phase = self.rng.uniform(sampled_phase_range[0], sampled_phase_range[1])
 
         # Sample number of periods and calculate period length
@@ -155,9 +150,7 @@ class SawToothGenerator(AbstractTimeSeriesGenerator):
         sawtooth_period = self.length / num_periods
 
         # Calculate seasonality period (use longer period for minimal seasonality)
-        seasonality_period = self.length / self.rng.uniform(
-            2.0, 4.0
-        )  # 2-4 seasonality cycles
+        seasonality_period = self.length / self.rng.uniform(2.0, 4.0)  # 2-4 seasonality cycles
 
         # Randomly decide whether to flip the sawtooth wave (50% chance)
         flip_sawtooth = self.rng.random() < 0.5
@@ -166,24 +159,18 @@ class SawToothGenerator(AbstractTimeSeriesGenerator):
         time_idx = np.arange(self.length)
 
         # Generate base sawtooth wave
-        values = self._generate_sawtooth(
-            time_idx, sawtooth_period, amplitude, phase, flip_sawtooth
-        )
+        values = self._generate_sawtooth(time_idx, sawtooth_period, amplitude, phase, flip_sawtooth)
 
         # Add trend if enabled
         if self.add_trend:
             sampled_trend_range = self._sample_range_parameter(self.trend_slope_range)
-            trend_slope = self.rng.uniform(
-                sampled_trend_range[0], sampled_trend_range[1]
-            )
+            trend_slope = self.rng.uniform(sampled_trend_range[0], sampled_trend_range[1])
             trend = self._generate_trend(time_idx, trend_slope)
             values += trend
 
         # Add minimal seasonality if enabled
         if self.add_seasonality:
-            sampled_seasonality_amplitude_range = self._sample_range_parameter(
-                self.seasonality_amplitude_range
-            )
+            sampled_seasonality_amplitude_range = self._sample_range_parameter(self.seasonality_amplitude_range)
 
             seasonality_amplitude = self.rng.uniform(
                 sampled_seasonality_amplitude_range[0],
@@ -191,9 +178,7 @@ class SawToothGenerator(AbstractTimeSeriesGenerator):
             )
 
             if seasonality_amplitude > 0:  # Only add seasonality if amplitude > 0
-                seasonality = self._generate_seasonality(
-                    time_idx, seasonality_amplitude, seasonality_period
-                )
+                seasonality = self._generate_seasonality(time_idx, seasonality_amplitude, seasonality_period)
                 values += seasonality
 
         return values

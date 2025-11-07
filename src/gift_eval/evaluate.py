@@ -2,7 +2,6 @@ import argparse
 import logging
 import warnings
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 import matplotlib
 from gluonts.model.evaluation import evaluate_model
@@ -44,19 +43,20 @@ class WarningFilter(logging.Filter):
 
 # Filter out gluonts warnings about mean predictions
 gts_logger = logging.getLogger("gluonts.model.forecast")
-gts_logger.addFilter(
-    WarningFilter("The mean prediction is not stored in the forecast data")
-)
+gts_logger.addFilter(WarningFilter("The mean prediction is not stored in the forecast data"))
 
 
 def construct_evaluation_data(
     dataset_name: str,
     dataset_storage_path: str,
-    terms: List[str] = ["short", "medium", "long"],
-    max_windows: Optional[int] = None,
-) -> List[Tuple[Dataset, DatasetMetadata]]:
+    terms: list[str] | None = None,
+    max_windows: int | None = None,
+) -> list[tuple[Dataset, DatasetMetadata]]:
     """Build datasets and rich metadata per term for a dataset name."""
-    sub_datasets: List[Tuple[Dataset, DatasetMetadata]] = []
+    if terms is None:
+        terms = ["short", "medium", "long"]
+
+    sub_datasets: list[tuple[Dataset, DatasetMetadata]] = []
 
     if "/" in dataset_name:
         ds_key, ds_freq = dataset_name.split("/")
@@ -69,9 +69,7 @@ def construct_evaluation_data(
 
     for term in terms:
         # Skip medium/long terms for datasets that don't support them
-        if (
-            term == "medium" or term == "long"
-        ) and dataset_name not in MED_LONG_DATASETS:
+        if (term == "medium" or term == "long") and dataset_name not in MED_LONG_DATASETS:
             continue
 
         # Probe once to determine dimensionality
@@ -96,7 +94,7 @@ def construct_evaluation_data(
         # Compute metadata
         season_length = get_seasonality(dataset.freq)
         actual_freq = ds_freq if ds_freq else dataset.freq
-        
+
         metadata = DatasetMetadata(
             full_name=f"{ds_key}/{actual_freq}/{term}",
             key=ds_key,
@@ -118,14 +116,17 @@ def evaluate_datasets(
     predictor: TimeSeriesPredictor,
     dataset: str,
     dataset_storage_path: str,
-    terms: List[str] = ["short", "medium", "long"],
-    max_windows: Optional[int] = None,
+    terms: list[str] | None = None,
+    max_windows: int | None = None,
     batch_size: int = 48,
-    max_context_length: Optional[int] = 1024,
+    max_context_length: int | None = 1024,
     create_plots: bool = False,
     max_plots_per_dataset: int = 10,
-) -> List[EvaluationItem]:
+) -> list[EvaluationItem]:
     """Evaluate predictor on one dataset across the requested terms."""
+    if terms is None:
+        terms = ["short", "medium", "long"]
+
     sub_datasets = construct_evaluation_data(
         dataset_name=dataset,
         dataset_storage_path=dataset_storage_path,
@@ -133,7 +134,7 @@ def evaluate_datasets(
         max_windows=max_windows,
     )
 
-    results: List[EvaluationItem] = []
+    results: list[EvaluationItem] = []
     for i, (sub_dataset, metadata) in enumerate(sub_datasets):
         logger.info(f"Evaluating {i + 1}/{len(sub_datasets)}: {metadata.full_name}")
         logger.info(f"  Dataset size: {len(sub_dataset.test_data)}")
@@ -161,7 +162,7 @@ def evaluate_datasets(
             seasonality=metadata.season_length,
         )
 
-        figs: List[Tuple[object, str]] = []
+        figs: list[tuple[object, str]] = []
         if create_plots:
             forecasts = predictor.predict(sub_dataset.test_data.input)
             figs = create_plots_for_dataset(
@@ -172,21 +173,19 @@ def evaluate_datasets(
                 max_context_length=max_context_length,
             )
 
-        results.append(
-            EvaluationItem(dataset_metadata=metadata, metrics=res, figures=figs)
-        )
+        results.append(EvaluationItem(dataset_metadata=metadata, metrics=res, figures=figs))
 
     return results
 
 
 def _run_evaluation(
     predictor: TimeSeriesPredictor,
-    datasets: List[str] | str,
-    terms: List[str],
+    datasets: list[str] | str,
+    terms: list[str],
     dataset_storage_path: str,
-    max_windows: Optional[int] = None,
+    max_windows: int | None = None,
     batch_size: int = 48,
-    max_context_length: Optional[int] = 1024,
+    max_context_length: int | None = 1024,
     output_dir: str = "gift_eval_results",
     model_name: str = "TimeSeriesModel",
     create_plots: bool = False,
@@ -220,12 +219,12 @@ def _run_evaluation(
 def evaluate_from_paths(
     model_path: str,
     config_path: str,
-    datasets: List[str] | str,
-    terms: List[str],
+    datasets: list[str] | str,
+    terms: list[str],
     dataset_storage_path: str,
-    max_windows: Optional[int] = None,
+    max_windows: int | None = None,
     batch_size: int = 48,
-    max_context_length: Optional[int] = 1024,
+    max_context_length: int | None = 1024,
     output_dir: str = "gift_eval_results",
     model_name: str = "TimeSeriesModel",
     create_plots: bool = False,
@@ -265,12 +264,12 @@ def evaluate_from_paths(
 def evaluate_in_memory(
     model,
     config: dict,
-    datasets: List[str] | str,
-    terms: List[str],
+    datasets: list[str] | str,
+    terms: list[str],
     dataset_storage_path: str,
-    max_windows: Optional[int] = None,
+    max_windows: int | None = None,
     batch_size: int = 48,
-    max_context_length: Optional[int] = 1024,
+    max_context_length: int | None = 1024,
     output_dir: str = "gift_eval_results",
     model_name: str = "TimeSeriesModel",
     create_plots: bool = False,
@@ -302,9 +301,7 @@ def evaluate_in_memory(
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Evaluate TimeSeriesModel on GIFT-Eval datasets"
-    )
+    parser = argparse.ArgumentParser(description="Evaluate TimeSeriesModel on GIFT-Eval datasets")
 
     # Model configuration
     parser.add_argument(
@@ -353,9 +350,7 @@ def _parse_args() -> argparse.Namespace:
     )
 
     # Inference configuration
-    parser.add_argument(
-        "--batch_size", type=int, default=48, help="Batch size for model inference"
-    )
+    parser.add_argument("--batch_size", type=int, default=48, help="Batch size for model inference")
     parser.add_argument(
         "--max_context_length",
         type=int,

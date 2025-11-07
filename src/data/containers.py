@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import List, Optional
 
 import numpy as np
 import torch
@@ -29,11 +28,11 @@ class BatchTimeSeriesContainer:
 
     history_values: torch.Tensor
     future_values: torch.Tensor
-    start: List[np.datetime64]
-    frequency: List[Frequency]
+    start: list[np.datetime64]
+    frequency: list[Frequency]
 
-    history_mask: Optional[torch.Tensor] = None
-    future_mask: Optional[torch.Tensor] = None
+    history_mask: torch.Tensor | None = None
+    future_mask: torch.Tensor | None = None
 
     def __post_init__(self):
         """Validate all tensor shapes and consistency."""
@@ -42,13 +41,9 @@ class BatchTimeSeriesContainer:
             raise TypeError("history_values must be a torch.Tensor")
         if not isinstance(self.future_values, torch.Tensor):
             raise TypeError("future_values must be a torch.Tensor")
-        if not isinstance(self.start, list) or not all(
-            isinstance(x, np.datetime64) for x in self.start
-        ):
+        if not isinstance(self.start, list) or not all(isinstance(x, np.datetime64) for x in self.start):
             raise TypeError("start must be a List[np.datetime64]")
-        if not isinstance(self.frequency, list) or not all(
-            isinstance(x, Frequency) for x in self.frequency
-        ):
+        if not isinstance(self.frequency, list) or not all(isinstance(x, Frequency) for x in self.frequency):
             raise TypeError("frequency must be a List[Frequency]")
 
         batch_size, seq_len, num_channels = self.history_values.shape
@@ -73,16 +68,14 @@ class BatchTimeSeriesContainer:
             if not isinstance(self.future_mask, torch.Tensor):
                 raise TypeError("future_mask must be a Tensor or None")
             if not (
-                self.future_mask.shape == (batch_size, pred_len)
-                or self.future_mask.shape == self.future_values.shape
+                self.future_mask.shape == (batch_size, pred_len) or self.future_mask.shape == self.future_values.shape
             ):
                 raise ValueError(
-                    f"Shape mismatch in future_mask: expected {(batch_size, pred_len)} or {self.future_values.shape}, got {self.future_mask.shape}"
+                    "Shape mismatch in future_mask: "
+                    f"expected {(batch_size, pred_len)} or {self.future_values.shape}, got {self.future_mask.shape}"
                 )
 
-    def to_device(
-        self, device: torch.device, attributes: Optional[List[str]] = None
-    ) -> None:
+    def to_device(self, device: torch.device, attributes: list[str] | None = None) -> None:
         """
         Move specified tensors to the target device in place.
 
@@ -109,7 +102,7 @@ class BatchTimeSeriesContainer:
             if all_tensors[attr] is not None:
                 setattr(self, attr, all_tensors[attr].to(device))
 
-    def to(self, device: torch.device, attributes: Optional[List[str]] = None):
+    def to(self, device: torch.device, attributes: list[str] | None = None):
         """
         Alias for to_device method for consistency with PyTorch conventions.
 
@@ -157,39 +150,33 @@ class TimeSeriesContainer:
     """
 
     values: np.ndarray
-    start: List[np.datetime64]
-    frequency: List[Frequency]
+    start: list[np.datetime64]
+    frequency: list[Frequency]
 
     def __post_init__(self):
         """Validate all shapes and consistency."""
         # --- Numpy Type Checks ---
         if not isinstance(self.values, np.ndarray):
             raise TypeError("values must be a np.ndarray")
-        if not isinstance(self.start, list) or not all(
-            isinstance(x, np.datetime64) for x in self.start
-        ):
+        if not isinstance(self.start, list) or not all(isinstance(x, np.datetime64) for x in self.start):
             raise TypeError("start must be a List[np.datetime64]")
-        if not isinstance(self.frequency, list) or not all(
-            isinstance(x, Frequency) for x in self.frequency
-        ):
+        if not isinstance(self.frequency, list) or not all(isinstance(x, Frequency) for x in self.frequency):
             raise TypeError("frequency must be a List[Frequency]")
 
         # --- Shape and Length Consistency Checks ---
         if len(self.values.shape) < 2 or len(self.values.shape) > 3:
             raise ValueError(
-                f"values must have 2 or 3 dimensions [batch_size, seq_len] or [batch_size, seq_len, num_channels], got shape {self.values.shape}"
+                "values must have 2 or 3 dimensions "
+                "[batch_size, seq_len] or [batch_size, seq_len, num_channels], "
+                f"got shape {self.values.shape}"
             )
 
         batch_size = self.values.shape[0]
 
         if len(self.start) != batch_size:
-            raise ValueError(
-                f"Length of start ({len(self.start)}) must match batch_size ({batch_size})"
-            )
+            raise ValueError(f"Length of start ({len(self.start)}) must match batch_size ({batch_size})")
         if len(self.frequency) != batch_size:
-            raise ValueError(
-                f"Length of frequency ({len(self.frequency)}) must match batch_size ({batch_size})"
-            )
+            raise ValueError(f"Length of frequency ({len(self.frequency)}) must match batch_size ({batch_size})")
 
     @property
     def batch_size(self) -> int:

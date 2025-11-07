@@ -13,7 +13,6 @@ This module centralizes all frequency-related functionality including:
 import logging
 import re
 from enum import Enum
-from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
@@ -132,7 +131,7 @@ class Frequency(Enum):
         """Get GIFT eval dataset frequency weight."""
         return GIFT_EVAL_FREQUENCY_WEIGHTS.get(self, 0.1)
 
-    def get_length_range(self) -> Tuple[int, int, int, int]:
+    def get_length_range(self) -> tuple[int, int, int, int]:
         """Get (min_length, max_length, optimal_start, optimal_end) for this frequency."""
         return GIFT_EVAL_LENGTH_RANGES.get(self, (50, 1000, 100, 500))
 
@@ -142,7 +141,7 @@ class Frequency(Enum):
 # ============================================================================
 
 # Core frequency mapping: (pandas_base, prefix, days_per_period)
-FREQUENCY_MAPPING: Dict[Frequency, Tuple[str, str, float]] = {
+FREQUENCY_MAPPING: dict[Frequency, tuple[str, str, float]] = {
     Frequency.A: (
         "YE",
         "",
@@ -162,7 +161,7 @@ FREQUENCY_MAPPING: Dict[Frequency, Tuple[str, str, float]] = {
 }
 
 # Frequency to pandas offset mapping for calculating time deltas
-FREQUENCY_TO_OFFSET: Dict[Frequency, str] = {
+FREQUENCY_TO_OFFSET: dict[Frequency, str] = {
     Frequency.A: "AS",  # Annual start
     Frequency.Q: "QS",  # Quarter start
     Frequency.M: "MS",  # Month start
@@ -203,7 +202,7 @@ ALL_FREQUENCY_MAX_LENGTHS = {
 }
 
 # GIFT eval-based frequency weights from actual dataset analysis
-GIFT_EVAL_FREQUENCY_WEIGHTS: Dict[Frequency, float] = {
+GIFT_EVAL_FREQUENCY_WEIGHTS: dict[Frequency, float] = {
     Frequency.H: 25.0,  # Hourly - most common
     Frequency.D: 23.4,  # Daily - second most common
     Frequency.W: 12.9,  # Weekly - third most common
@@ -219,7 +218,7 @@ GIFT_EVAL_FREQUENCY_WEIGHTS: Dict[Frequency, float] = {
 
 # GIFT eval-based length ranges derived from actual dataset analysis
 # Format: (min_length, max_length, optimal_start, optimal_end)
-GIFT_EVAL_LENGTH_RANGES: Dict[Frequency, Tuple[int, int, int, int]] = {
+GIFT_EVAL_LENGTH_RANGES: dict[Frequency, tuple[int, int, int, int]] = {
     # Low frequency ranges (based on actual GIFT eval data + logical extensions)
     Frequency.A: (25, 100, 30, 70),
     Frequency.Q: (25, 150, 50, 120),
@@ -264,9 +263,7 @@ def parse_frequency(freq_str: str) -> Frequency:
     """
     # Handle minute-based frequencies BEFORE pandas standardization
     # because pandas converts "5T" to just "min", losing the multiplier
-    minute_match = re.match(r"^(\d*)T$", freq_str, re.IGNORECASE) or re.match(
-        r"^(\d*)min$", freq_str, re.IGNORECASE
-    )
+    minute_match = re.match(r"^(\d*)T$", freq_str, re.IGNORECASE) or re.match(r"^(\d*)min$", freq_str, re.IGNORECASE)
     if minute_match:
         multiplier = int(minute_match.group(1)) if minute_match.group(1) else 1
         enum_key = f"T{multiplier}"
@@ -309,9 +306,7 @@ def parse_frequency(freq_str: str) -> Frequency:
     raise NotImplementedError(f"Frequency '{standardized_freq}' is not supported.")
 
 
-def validate_frequency_safety(
-    start_date: np.datetime64, total_length: int, frequency: Frequency
-) -> bool:
+def validate_frequency_safety(start_date: np.datetime64, total_length: int, frequency: Frequency) -> bool:
     """
     Check if start date and frequency combination is safe for pandas datetime operations.
 
@@ -427,9 +422,7 @@ def select_safe_random_frequency(total_length: int, rng: Generator) -> Frequency
             # Outside optimal but within valid range - calculate penalty
             if total_length < optimal_start:
                 # Below optimal range
-                distance_ratio = (optimal_start - total_length) / (
-                    optimal_start - min_len
-                )
+                distance_ratio = (optimal_start - total_length) / (optimal_start - min_len)
             else:
                 # Above optimal range
                 distance_ratio = (total_length - optimal_end) / (max_len - optimal_end)
@@ -479,7 +472,7 @@ def select_safe_random_frequency(total_length: int, rng: Generator) -> Frequency
 def select_safe_start_date(
     total_length: int,
     frequency: Frequency,
-    rng: Generator = np.random.default_rng(),
+    rng: Generator | None = None,
     max_retries: int = 10,
 ) -> np.datetime64:
     """
@@ -499,6 +492,9 @@ def select_safe_start_date(
         ValueError: If no safe start date is found after max_retries or if the required
                    time span exceeds the available date window
     """
+    if rng is None:
+        rng = np.random.default_rng()
+
     days_per_period = frequency.get_days_per_period()
 
     # Calculate approximate duration in days
@@ -510,9 +506,7 @@ def select_safe_start_date(
 
     # Check if the required time span exceeds the available window
     if latest_safe_start < earliest_safe_start:
-        available_days = (
-            (BASE_END_DATE - BASE_START_DATE).astype("timedelta64[D]").astype(int)
-        )
+        available_days = (BASE_END_DATE - BASE_START_DATE).astype("timedelta64[D]").astype(int)
         available_years = available_days / 365.25
         required_years = total_days / 365.25
         raise ValueError(

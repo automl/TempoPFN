@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 
 from src.models.gated_deltaproduct import GatedDeltaProductConfig
@@ -56,7 +55,5 @@ class GatedDeltaProductEncoder(nn.Module):
         Returns:
             Output tensor of same shape as input
         """
-        x, last_hidden_state, _ = self.encoder_layer(
-            x, output_attentions=True, initial_state=initial_state
-        )
+        x, last_hidden_state, _ = self.encoder_layer(x, output_attentions=True, initial_state=initial_state)
         return x, last_hidden_state

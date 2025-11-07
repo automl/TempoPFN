@@ -1,5 +1,4 @@
 from datetime import date
-from typing import Dict
 
 import numpy as np
 
@@ -15,7 +14,7 @@ LENGTH_CHOICES = [128, 256, 512, 1024, 1536, 2048]
 
 DEFAULT_NAN_STATS_PATH: str = "./data/nan_stats.json"
 
-LENGTH_WEIGHTS: Dict[int, float] = {
+LENGTH_WEIGHTS: dict[int, float] = {
     128: 0.05,
     256: 0.10,
     512: 0.10,

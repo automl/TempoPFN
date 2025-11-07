@@ -1,10 +1,9 @@
 import random
-from typing import Optional, Tuple, Union
 
 
 def sample_future_length(
-    range: Union[Tuple[int, int], str] = "gift_eval",
-    total_length: Optional[int] = None,
+    range: tuple[int, int] | str = "gift_eval",
+    total_length: int | None = None,
 ) -> int:
     """
     Sample a forecast length.
@@ -16,7 +15,7 @@ def sample_future_length(
       floor(0.45 * total_length) before sampling.
     """
     # Compute the cap when total_length is provided
-    cap: Optional[int] = None
+    cap: int | None = None
     if total_length is not None:
         cap = max(1, int(0.45 * int(total_length)))
 
@@ -62,11 +61,11 @@ def sample_future_length(
         if cap is not None:
             filtered = [
                 (length_candidate, weight)
-                for length_candidate, weight in zip(lengths, weights)
+                for length_candidate, weight in zip(lengths, weights, strict=True)
                 if length_candidate <= cap
             ]
             if filtered:
-                lengths, weights = zip(*filtered)
+                lengths, weights = zip(*filtered, strict=True)
                 lengths = list(lengths)
                 weights = list(weights)
 

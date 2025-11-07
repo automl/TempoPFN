@@ -3,12 +3,11 @@ import logging
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import torch
-
 from src.data.augmentations import (
     CensorAugmenter,
     DifferentialAugmenter,
@@ -33,12 +32,12 @@ class OfflineTempBatchAugmentedGenerator:
         self,
         base_data_dir: str,
         output_dir: str,
-        length: Optional[int],
+        length: int | None,
         mixed_batch_size: int = 10,
         chunk_size: int = 2**13,
-        generator_proportions: Optional[Dict[str, float]] = None,
-        augmentations: Optional[Dict[str, bool]] = None,
-        augmentation_probabilities: Optional[Dict[str, float]] = None,
+        generator_proportions: dict[str, float] | None = None,
+        augmentations: dict[str, bool] | None = None,
+        augmentation_probabilities: dict[str, float] | None = None,
         global_seed: int = 42,
         mixup_position: str = "both",
         selection_strategy: str = "random",
@@ -54,14 +53,8 @@ class OfflineTempBatchAugmentedGenerator:
         np.random.seed(global_seed)
         torch.manual_seed(global_seed)
 
-        out_dir_name = (
-            f"augmented_temp_batch_{length}"
-            if length is not None
-            else "augmented_temp_batch"
-        )
-        self.dataset_manager = TimeSeriesDatasetManager(
-            str(Path(output_dir) / out_dir_name), batch_size=chunk_size
-        )
+        out_dir_name = f"augmented_temp_batch_{length}" if length is not None else "augmented_temp_batch"
+        self.dataset_manager = TimeSeriesDatasetManager(str(Path(output_dir) / out_dir_name), batch_size=chunk_size)
 
         # Augmentation config
         self.augmentation_probabilities = augmentation_probabilities or {}
@@ -82,16 +75,12 @@ class OfflineTempBatchAugmentedGenerator:
         self.flip_augmenter = None
         if self.augmentations.get("time_flip_augmentation", False):
             self.flip_augmenter = TimeFlipAugmenter(
-                p_flip=self.augmentation_probabilities.get(
-                    "time_flip_augmentation", 0.5
-                )
+                p_flip=self.augmentation_probabilities.get("time_flip_augmentation", 0.5)
             )
 
         self.yflip_augmenter = None
         if self.augmentations.get("yflip_augmentation", False):
-            self.yflip_augmenter = YFlipAugmenter(
-                p_flip=self.augmentation_probabilities.get("yflip_augmentation", 0.5)
-            )
+            self.yflip_augmenter = YFlipAugmenter(p_flip=self.augmentation_probabilities.get("yflip_augmentation", 0.5))
 
         self.censor_augmenter = None
         if self.augmentations.get("censor_augmentation", False):
@@ -100,9 +89,7 @@ class OfflineTempBatchAugmentedGenerator:
         self.quantization_augmenter = None
         if self.augmentations.get("quantization_augmentation", False):
             self.quantization_augmenter = QuantizationAugmenter(
-                p_quantize=self.augmentation_probabilities.get(
-                    "censor_or_quantization_augmentation", 0.5
-                ),
+                p_quantize=self.augmentation_probabilities.get("censor_or_quantization_augmentation", 0.5),
                 level_range=(5, 15),
             )
 
@@ -115,17 +102,13 @@ class OfflineTempBatchAugmentedGenerator:
         self.differential_augmentor = None
         if self.augmentations.get("differential_augmentation", False):
             self.differential_augmentor = DifferentialAugmenter(
-                p_transform=self.augmentation_probabilities.get(
-                    "differential_augmentation", 0.5
-                )
+                p_transform=self.augmentation_probabilities.get("differential_augmentation", 0.5)
             )
 
         self.random_conv_augmenter = None
         if self.augmentations.get("random_conv_augmentation", False):
             self.random_conv_augmenter = RandomConvAugmenter(
-                p_transform=self.augmentation_probabilities.get(
-                    "random_conv_augmentation", 0.3
-                )
+                p_transform=self.augmentation_probabilities.get("random_conv_augmentation", 0.3)
             )
 
         self.generator_proportions = self._setup_proportions(generator_proportions)
@@ -138,12 +121,10 @@ class OfflineTempBatchAugmentedGenerator:
             global_seed=global_seed,
         )
 
-    def _compute_change_scores(
-        self, original_batch: torch.Tensor, augmented_batch: torch.Tensor
-    ) -> np.ndarray:
+    def _compute_change_scores(self, original_batch: torch.Tensor, augmented_batch: torch.Tensor) -> np.ndarray:
         # Normalized MAE vs IQR (q25-q75) per element
         bsz = augmented_batch.shape[0]
-        scores: List[float] = []
+        scores: list[float] = []
         for i in range(bsz):
             base_flat = original_batch[i].reshape(-1)
             q25 = torch.quantile(base_flat, 0.25)
@@ -154,14 +135,12 @@ class OfflineTempBatchAugmentedGenerator:
             scores.append(mae / iqr)
         return np.asarray(scores, dtype=float)
 
-    def _setup_proportions(
-        self, generator_proportions: Optional[Dict[str, float]]
-    ) -> Dict[str, float]:
+    def _setup_proportions(self, generator_proportions: dict[str, float] | None) -> dict[str, float]:
         # Default uniform across discovered generators
         if generator_proportions is None:
             base = Path(self.base_data_dir)
             discovered = [p.name for p in base.iterdir() if p.is_dir()]
-            proportions = {name: 1.0 for name in discovered}
+            proportions = dict.fromkeys(discovered, 1.0)
         else:
             proportions = dict(generator_proportions)
 
@@ -170,16 +149,14 @@ class OfflineTempBatchAugmentedGenerator:
             raise ValueError("Total generator proportions must be positive")
         return {k: v / total for k, v in proportions.items()}
 
-    def _initialize_datasets(self) -> Dict[str, CyclicalBatchDataset]:
-        datasets: Dict[str, CyclicalBatchDataset] = {}
+    def _initialize_datasets(self) -> dict[str, CyclicalBatchDataset]:
+        datasets: dict[str, CyclicalBatchDataset] = {}
         for generator_name, proportion in self.generator_proportions.items():
             if proportion <= 0:
                 continue
             batches_dir = Path(self.base_data_dir) / generator_name
             if not batches_dir.is_dir():
-                logging.warning(
-                    f"Skipping '{generator_name}' because directory does not exist: {batches_dir}"
-                )
+                logging.warning(f"Skipping '{generator_name}' because directory does not exist: {batches_dir}")
                 continue
             try:
                 dataset = CyclicalBatchDataset(
@@ -199,9 +176,7 @@ class OfflineTempBatchAugmentedGenerator:
 
     def _sample_generator_name(self) -> str:
         available = [g for g in self.generator_proportions.keys() if g in self.datasets]
-        probs = np.array(
-            [self.generator_proportions[g] for g in available], dtype=float
-        )
+        probs = np.array([self.generator_proportions[g] for g in available], dtype=float)
         probs = probs / probs.sum()
         return str(self.rng.choice(available, p=probs))
 
@@ -226,9 +201,7 @@ class OfflineTempBatchAugmentedGenerator:
         except Exception:
             return f"{gen_name}:rand:{self.rng.integers(0, 1 << 31)}"
 
-    def _convert_sample_to_tensor(
-        self, sample: dict
-    ) -> Tuple[torch.Tensor, pd.Timestamp, str, int]:
+    def _convert_sample_to_tensor(self, sample: dict) -> tuple[torch.Tensor, pd.Timestamp, str, int]:
         num_channels = sample.get("num_channels", 1)
         values_data = sample["values"]
 
@@ -247,16 +220,10 @@ class OfflineTempBatchAugmentedGenerator:
 
         freq_str = sample["frequency"]
         start_val = sample["start"]
-        start = (
-            start_val
-            if isinstance(start_val, pd.Timestamp)
-            else pd.Timestamp(start_val)
-        )
+        start = start_val if isinstance(start_val, pd.Timestamp) else pd.Timestamp(start_val)
         return values, start, freq_str, num_channels
 
-    def _shorten_like_batch_composer(
-        self, values: torch.Tensor, target_len: int
-    ) -> Optional[torch.Tensor]:
+    def _shorten_like_batch_composer(self, values: torch.Tensor, target_len: int) -> torch.Tensor | None:
         # Only shorten if longer; if shorter than target_len, reject (to keep batch aligned)
         seq_len = int(values.shape[1])
         if seq_len == target_len:
@@ -274,9 +241,7 @@ class OfflineTempBatchAugmentedGenerator:
         return values[:, indices, :]
 
     def _maybe_apply_scaler(self, values: torch.Tensor) -> torch.Tensor:
-        scaler_choice = str(
-            self.rng.choice(["robust", "minmax", "median", "mean", "none"])
-        )
+        scaler_choice = str(self.rng.choice(["robust", "minmax", "median", "mean", "none"]))
         scaler = None
         if scaler_choice == "robust":
             scaler = RobustScaler()
@@ -293,8 +258,8 @@ class OfflineTempBatchAugmentedGenerator:
     def _apply_augmentations(
         self,
         batch_values: torch.Tensor,
-        starts: List[pd.Timestamp],
-        freqs: List[str],
+        starts: list[pd.Timestamp],
+        freqs: list[str],
     ) -> torch.Tensor:
         if not self.apply_augmentations:
             return batch_values
@@ -314,17 +279,13 @@ class OfflineTempBatchAugmentedGenerator:
             s = batch_values[i : i + 1]
             start_i = starts[i] if i < len(starts) else None
             freq_i = freqs[i] if i < len(freqs) else None
-            s_aug = self.per_series_augmentor.apply_per_series_only(
-                s, start=start_i, frequency=freq_i
-            )
+            s_aug = self.per_series_augmentor.apply_per_series_only(s, start=start_i, frequency=freq_i)
             augmented_list.append(s_aug)
         batch_values = torch.cat(augmented_list, dim=0)
 
         # 3) Noise augmentation (batch-level)
         if self.augmentations.get("noise_augmentation", False):
-            if self.rng.random() < self.augmentation_probabilities.get(
-                "noise_augmentation", 0.5
-            ):
+            if self.rng.random() < self.augmentation_probabilities.get("noise_augmentation", 0.5):
                 noise_std = 0.01 * torch.std(batch_values)
                 if torch.isfinite(noise_std) and (noise_std > 0):
                     noise = torch.normal(0, noise_std, size=batch_values.shape)
@@ -332,20 +293,13 @@ class OfflineTempBatchAugmentedGenerator:
 
         # 4) Scaling augmentation (batch-level)
         if self.augmentations.get("scaling_augmentation", False):
-            if self.rng.random() < self.augmentation_probabilities.get(
-                "scaling_augmentation", 0.5
-            ):
+            if self.rng.random() < self.augmentation_probabilities.get("scaling_augmentation", 0.5):
                 scale_factor = float(self.rng.uniform(0.95, 1.05))
                 batch_values = batch_values * scale_factor
 
         # 5) RandomConvAugmenter (batch-level)
-        if (
-            self.augmentations.get("random_conv_augmentation", False)
-            and self.random_conv_augmenter is not None
-        ):
-            if self.rng.random() < self.augmentation_probabilities.get(
-                "random_conv_augmentation", 0.3
-            ):
+        if self.augmentations.get("random_conv_augmentation", False) and self.random_conv_augmenter is not None:
+            if self.rng.random() < self.augmentation_probabilities.get("random_conv_augmentation", 0.3):
                 batch_values = self.random_conv_augmenter.transform(batch_values)
 
         # 6) Late mixup (batch-level)
@@ -360,7 +314,7 @@ class OfflineTempBatchAugmentedGenerator:
 
     def _get_one_source_sample(
         self, total_length_for_batch: int, used_source_keys: set
-    ) -> Optional[Tuple[torch.Tensor, pd.Timestamp, str, str]]:
+    ) -> tuple[torch.Tensor, pd.Timestamp, str, str] | None:
         # Returns (values, start, freq, source_key) or None if cannot fetch
         attempts = 0
         while attempts < 50:
@@ -368,18 +322,14 @@ class OfflineTempBatchAugmentedGenerator:
             gen_name = self._sample_generator_name()
             dataset = self.datasets[gen_name]
             sample = dataset.get_samples(1)[0]
-            values, start, freq_str, num_channels = self._convert_sample_to_tensor(
-                sample
-            )
+            values, start, freq_str, num_channels = self._convert_sample_to_tensor(sample)
             if num_channels != 1:
                 continue
             # Reject NaNs
             if torch.isnan(values).any():
                 continue
             # Shorten to target_len; reject if too short
-            shortened = self._shorten_like_batch_composer(
-                values, total_length_for_batch
-            )
+            shortened = self._shorten_like_batch_composer(values, total_length_for_batch)
             if shortened is None:
                 continue
             values = shortened
@@ -394,24 +344,24 @@ class OfflineTempBatchAugmentedGenerator:
             return values, start, freq_str, key
         return None
 
-    def _tensor_to_values_list(
-        self, series_tensor: torch.Tensor
-    ) -> Tuple[List[List[float]], int, int]:
+    def _tensor_to_values_list(self, series_tensor: torch.Tensor) -> tuple[list[list[float]], int, int]:
         seq_len = int(series_tensor.shape[1])
         num_channels = int(series_tensor.shape[2])
         if num_channels == 1:
             return [series_tensor.squeeze(0).squeeze(-1).tolist()], seq_len, 1
-        channels: List[List[float]] = []
+        channels: list[list[float]] = []
         for ch in range(num_channels):
             channels.append(series_tensor[0, :, ch].tolist())
         return channels, seq_len, num_channels
 
     def run(self, num_batches: int) -> None:
         logging.info(
-            f"Starting offline IID augmentation into {self.dataset_manager.batches_dir} | chunk_size={self.chunk_size} | mixed_batch_size={self.mixed_batch_size}"
+            f"Starting offline IID augmentation into {self.dataset_manager.batches_dir} | "
+            f"chunk_size={self.chunk_size} | "
+            f"mixed_batch_size={self.mixed_batch_size}"
         )
 
-        augmented_buffer: List[Dict[str, Any]] = []
+        augmented_buffer: list[dict[str, Any]] = []
         target_batches = num_batches
         start_time = time.time()
 
@@ -419,28 +369,21 @@ class OfflineTempBatchAugmentedGenerator:
             while self.dataset_manager.batch_counter < target_batches:
                 # Decide target length for this temp batch
                 total_length_for_batch = (
-                    self.length
-                    if self.length is not None
-                    else int(self.rng.choice(LENGTH_CHOICES))
+                    self.length if self.length is not None else int(self.rng.choice(LENGTH_CHOICES))
                 )
 
-                selected_record: Optional[Dict[str, Any]] = None
+                selected_record: dict[str, Any] | None = None
                 for _retry in range(max(1, self.temp_batch_retries + 1)):
                     # Collect a temporary mixed batch without reusing sources
-                    temp_values_list: List[torch.Tensor] = []
-                    temp_starts: List[pd.Timestamp] = []
-                    temp_freqs: List[str] = []
+                    temp_values_list: list[torch.Tensor] = []
+                    temp_starts: list[pd.Timestamp] = []
+                    temp_freqs: list[str] = []
                     temp_used_keys: set = set()
 
                     attempts = 0
-                    while (
-                        len(temp_values_list) < self.mixed_batch_size
-                        and attempts < self.mixed_batch_size * 200
-                    ):
+                    while len(temp_values_list) < self.mixed_batch_size and attempts < self.mixed_batch_size * 200:
                         attempts += 1
-                        fetched = self._get_one_source_sample(
-                            total_length_for_batch, temp_used_keys
-                        )
+                        fetched = self._get_one_source_sample(total_length_for_batch, temp_used_keys)
                         if fetched is None:
                             continue
                         values, start, freq, _ = fetched
@@ -456,28 +399,24 @@ class OfflineTempBatchAugmentedGenerator:
                     original_temp_batch = temp_batch.clone()
 
                     # Apply augmentations sequentially
-                    augmented_temp_batch = self._apply_augmentations(
-                        temp_batch, temp_starts, temp_freqs
-                    )
+                    augmented_temp_batch = self._apply_augmentations(temp_batch, temp_starts, temp_freqs)
 
                     # Compute change scores
-                    scores = self._compute_change_scores(
-                        original_temp_batch, augmented_temp_batch
-                    )
+                    scores = self._compute_change_scores(original_temp_batch, augmented_temp_batch)
 
                     # Build eligible indices by threshold
                     eligible = np.where(scores >= self.change_threshold)[0].tolist()
 
                     # Apply quality filter if enabled
                     if self.enable_quality_filter:
-                        eligible_q: List[int] = []
+                        eligible_q: list[int] = []
                         for idx in eligible:
                             cand = augmented_temp_batch[idx : idx + 1]
                             if not is_low_quality(cand):
                                 eligible_q.append(idx)
                         eligible = eligible_q
 
-                    sel_idx: Optional[int] = None
+                    sel_idx: int | None = None
                     if self.selection_strategy == "max_change":
                         if eligible:
                             sel_idx = int(max(eligible, key=lambda i: scores[i]))
@@ -487,35 +426,25 @@ class OfflineTempBatchAugmentedGenerator:
                                 qual_idxs = [
                                     i
                                     for i in range(augmented_temp_batch.shape[0])
-                                    if not is_low_quality(
-                                        augmented_temp_batch[i : i + 1]
-                                    )
+                                    if not is_low_quality(augmented_temp_batch[i : i + 1])
                                 ]
                                 if qual_idxs:
-                                    sel_idx = int(
-                                        max(qual_idxs, key=lambda i: scores[i])
-                                    )
+                                    sel_idx = int(max(qual_idxs, key=lambda i: scores[i]))
                             if sel_idx is None:
                                 sel_idx = int(np.argmax(scores))
                     else:
                         # random selection among eligible, else fallback to best
                         if eligible:
-                            sel_idx = int(
-                                self.rng.choice(np.asarray(eligible, dtype=int))
-                            )
+                            sel_idx = int(self.rng.choice(np.asarray(eligible, dtype=int)))
                         else:
                             if self.enable_quality_filter:
                                 qual_idxs = [
                                     i
                                     for i in range(augmented_temp_batch.shape[0])
-                                    if not is_low_quality(
-                                        augmented_temp_batch[i : i + 1]
-                                    )
+                                    if not is_low_quality(augmented_temp_batch[i : i + 1])
                                 ]
                                 if qual_idxs:
-                                    sel_idx = int(
-                                        max(qual_idxs, key=lambda i: scores[i])
-                                    )
+                                    sel_idx = int(max(qual_idxs, key=lambda i: scores[i]))
                             if sel_idx is None:
                                 sel_idx = int(np.argmax(scores))
 
@@ -524,9 +453,7 @@ class OfflineTempBatchAugmentedGenerator:
                         continue
 
                     selected_series = augmented_temp_batch[sel_idx : sel_idx + 1]
-                    values_list, seq_len, num_channels = self._tensor_to_values_list(
-                        selected_series
-                    )
+                    values_list, seq_len, num_channels = self._tensor_to_values_list(selected_series)
                     selected_record = {
                         "series_id": self.dataset_manager.series_counter,
                         "values": values_list,
@@ -550,19 +477,19 @@ class OfflineTempBatchAugmentedGenerator:
                     self.dataset_manager.append_batch(augmented_buffer)
                     write_time = time.time() - write_start
                     elapsed = time.time() - start_time
-                    series_per_sec = (
-                        self.dataset_manager.series_counter / elapsed
-                        if elapsed > 0
-                        else 0
-                    )
+                    series_per_sec = self.dataset_manager.series_counter / elapsed if elapsed > 0 else 0
                     print(
-                        f"✓ Wrote batch {self.dataset_manager.batch_counter - 1}/{target_batches} | Series: {self.dataset_manager.series_counter:,} | Rate: {series_per_sec:.1f}/s | Write: {write_time:.2f}s"
+                        f"✓ Wrote batch {self.dataset_manager.batch_counter - 1}/{target_batches} | "
+                        f"Series: {self.dataset_manager.series_counter:,} | "
+                        f"Rate: {series_per_sec:.1f}/s | "
+                        f"Write: {write_time:.2f}s"
                     )
                     augmented_buffer = []
 
         except KeyboardInterrupt:
             logging.info(
-                f"Interrupted. Generated {self.dataset_manager.series_counter} series, {self.dataset_manager.batch_counter} batches."
+                f"Interrupted. Generated {self.dataset_manager.series_counter} series, "
+                f"{self.dataset_manager.batch_counter} batches."
             )
         finally:
             if augmented_buffer:
@@ -653,9 +580,7 @@ def main():
         help="Number of times to rebuild temp batch if selection fails thresholds",
     )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
-    parser.add_argument(
-        "--global-seed", type=int, default=42, help="Global random seed"
-    )
+    parser.add_argument("--global-seed", type=int, default=42, help="Global random seed")
 
     args = parser.parse_args()
     setup_logging(args.verbose)

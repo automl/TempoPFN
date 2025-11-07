@@ -2,12 +2,11 @@ import argparse
 import logging
 
 import torch
-
 from examples.utils import (
-    download_checkpoint_if_needed,
     load_model,
     run_inference_and_plot,
 )
+from huggingface_hub import hf_hub_download
 from src.data.containers import BatchTimeSeriesContainer
 from src.synthetic_generation.generator_params import SineWaveGeneratorParams
 from src.synthetic_generation.sine_waves.sine_wave_generator_wrapper import (
@@ -15,9 +14,7 @@ from src.synthetic_generation.sine_waves.sine_wave_generator_wrapper import (
 )
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -30,11 +27,6 @@ def main():
         default="configs/example.yaml",
         help="Path to model config YAML (default: configs/example.yaml)",
     )
-    parser.add_argument(
-        "--checkpoint",
-        default=None,
-        help="Path to model checkpoint. If omitted, downloads from Dropbox.",
-    )
     parser.add_argument("--batch_size", type=int, default=3)
     parser.add_argument("--total_length", type=int, default=2048)
     parser.add_argument("--seed", type=int, default=42)
@@ -46,13 +38,11 @@ def main():
     total_length = args.total_length
     output_dir = args.output_dir
     seed = args.seed
-
     config_path = args.config
-    if args.checkpoint:
-        model_path = args.checkpoint
-    else:
-        dropbox_url = "https://www.dropbox.com/scl/fi/mqsni5lehooyaw93y3uzq/checkpoint_38M.pth?rlkey=3uyehvmtted02xkha24zgpzb6&st=seevsbkn&dl=0"
-        model_path = download_checkpoint_if_needed(dropbox_url, target_dir="models")
+
+    logger.info("Downloading model checkpoint from Hugging Face Hub...")
+    model_path = hf_hub_download(repo_id="AutoML-org/TempoPFN", filename="models/checkpoint_38M.pth")
+    logger.info(f"Checkpoint downloaded to: {model_path}")
 
     logger.info("=== Time Series Model Demo (Univariate Quantile) ===")
 
@@ -69,9 +59,7 @@ def main():
 
     # 2) Load the pretrained model (CUDA-only). This demo requires a CUDA GPU.
     if not torch.cuda.is_available():
-        raise RuntimeError(
-            "CUDA is required to run this demo. No CUDA device detected."
-        )
+        raise RuntimeError("CUDA is required to run this demo. No CUDA device detected.")
     device = torch.device("cuda:0")
     model = load_model(config_path=config_path, model_path=model_path, device=device)
 
@@ -84,9 +72,7 @@ def main():
     )
 
     # 4) Run inference (bfloat16 on CUDA) and plot results
-    run_inference_and_plot(
-        model=model, container=container, output_dir=output_dir, use_bfloat16=True
-    )
+    run_inference_and_plot(model=model, container=container, output_dir=output_dir, use_bfloat16=True)
 
     logger.info("=== Demo completed successfully! ===")
 

@@ -1,7 +1,7 @@
 """Predictor implementation wrapping the TimeSeriesModel for GIFT-Eval."""
 
 import logging
-from typing import Iterator, List, Optional
+from collections.abc import Iterator
 
 import numpy as np
 import torch
@@ -16,7 +16,6 @@ from src.data.scalers import RobustScaler
 from src.models.model import TimeSeriesModel
 from src.utils.utils import device
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -30,7 +29,7 @@ class TimeSeriesPredictor(Predictor):
         ds_prediction_length: int,
         ds_freq: str,
         batch_size: int = 32,
-        max_context_length: Optional[int] = None,
+        max_context_length: int | None = None,
         debug: bool = False,
     ) -> None:
         # Dataset-specific context (can be updated per dataset/term)
@@ -46,9 +45,7 @@ class TimeSeriesPredictor(Predictor):
         self.config = config
 
         # Initialize scaler (using same type as model)
-        scaler_type = self.config.get("TimeSeriesModel", {}).get(
-            "scaler", "custom_robust"
-        )
+        scaler_type = self.config.get("TimeSeriesModel", {}).get("scaler", "custom_robust")
         epsilon = self.config.get("TimeSeriesModel", {}).get("epsilon", 1e-3)
         if scaler_type == "custom_robust":
             self.scaler = RobustScaler(epsilon=epsilon)
@@ -57,10 +54,10 @@ class TimeSeriesPredictor(Predictor):
 
     def set_dataset_context(
         self,
-        prediction_length: Optional[int] = None,
-        freq: Optional[str] = None,
-        batch_size: Optional[int] = None,
-        max_context_length: Optional[int] = None,
+        prediction_length: int | None = None,
+        freq: str | None = None,
+        batch_size: int | None = None,
+        max_context_length: int | None = None,
     ) -> None:
         """Update lightweight dataset-specific attributes without reloading the model."""
 
@@ -81,7 +78,7 @@ class TimeSeriesPredictor(Predictor):
         ds_prediction_length: int,
         ds_freq: str,
         batch_size: int = 32,
-        max_context_length: Optional[int] = None,
+        max_context_length: int | None = None,
         debug: bool = False,
     ) -> "TimeSeriesPredictor":
         return cls(
@@ -102,10 +99,10 @@ class TimeSeriesPredictor(Predictor):
         ds_prediction_length: int,
         ds_freq: str,
         batch_size: int = 32,
-        max_context_length: Optional[int] = None,
+        max_context_length: int | None = None,
         debug: bool = False,
     ) -> "TimeSeriesPredictor":
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             config = yaml.safe_load(f)
         model = cls._load_model_from_path(config=config, model_path=model_path)
         return cls(
@@ -151,13 +148,13 @@ class TimeSeriesPredictor(Predictor):
                 seq_len = min(seq_len, self.max_context_length)
             return seq_len
 
-        length_to_items: dict[int, List[tuple[int, object]]] = {}
+        length_to_items: dict[int, list[tuple[int, object]]] = {}
         for idx, entry in enumerate(test_data_input):
             seq_len = _effective_length(entry)
             length_to_items.setdefault(seq_len, []).append((idx, entry))
 
         total = len(test_data_input)
-        ordered_results: List[Optional[QuantileForecast]] = [None] * total
+        ordered_results: list[QuantileForecast | None] = [None] * total
 
         for _, items in length_to_items.items():
             for i in range(0, len(items), self.batch_size):
@@ -169,7 +166,7 @@ class TimeSeriesPredictor(Predictor):
 
         return ordered_results  # type: ignore[return-value]
 
-    def _predict_batch(self, test_data_batch: List) -> List[QuantileForecast]:
+    def _predict_batch(self, test_data_batch: list) -> list[QuantileForecast]:
         """Generate predictions for a batch of time series."""
 
         logger.debug(f"Processing batch of size: {len(test_data_batch)}")
@@ -191,9 +188,7 @@ class TimeSeriesPredictor(Predictor):
                 with torch.no_grad():
                     model_output = self.model(batch_container, drop_enc_allow=False)
 
-            forecasts = self._convert_to_forecasts(
-                model_output, test_data_batch, batch_container
-            )
+            forecasts = self._convert_to_forecasts(model_output, test_data_batch, batch_container)
 
             logger.debug(f"Generated {len(forecasts)} forecasts")
             return forecasts
@@ -201,9 +196,7 @@ class TimeSeriesPredictor(Predictor):
             logger.error(f"Error in batch prediction: {exc}")
             raise
 
-    def _convert_to_batch_container(
-        self, test_data_batch: List
-    ) -> BatchTimeSeriesContainer:
+    def _convert_to_batch_container(self, test_data_batch: list) -> BatchTimeSeriesContainer:
         """Convert gluonts test data to BatchTimeSeriesContainer."""
 
         batch_size = len(test_data_batch)
@@ -219,10 +212,7 @@ class TimeSeriesPredictor(Predictor):
             else:
                 target = target.T
 
-            if (
-                self.max_context_length is not None
-                and len(target) > self.max_context_length
-            ):
+            if self.max_context_length is not None and len(target) > self.max_context_length:
                 target = target[-self.max_context_length :]
 
             history_values_list.append(target)
@@ -232,9 +222,7 @@ class TimeSeriesPredictor(Predictor):
         history_values_np = np.stack(history_values_list, axis=0)
         num_channels = history_values_np.shape[2]
 
-        history_values = torch.tensor(
-            history_values_np, dtype=torch.float32, device=device
-        )
+        history_values = torch.tensor(history_values_np, dtype=torch.float32, device=device)
 
         future_values = torch.zeros(
             (batch_size, self.ds_prediction_length, num_channels),
@@ -252,28 +240,24 @@ class TimeSeriesPredictor(Predictor):
     def _convert_to_forecasts(
         self,
         model_output: dict,
-        test_data_batch: List,
+        test_data_batch: list,
         batch_container: BatchTimeSeriesContainer,
-    ) -> List[QuantileForecast]:
+    ) -> list[QuantileForecast]:
         """Convert model predictions to QuantileForecast objects."""
 
         predictions = model_output["result"]
         scale_statistics = model_output["scale_statistics"]
 
         if predictions.ndim == 4:
-            predictions_unscaled = self.scaler.inverse_scale(
-                predictions, scale_statistics
-            )
+            predictions_unscaled = self.scaler.inverse_scale(predictions, scale_statistics)
             is_quantile = True
             quantile_levels = self.model.quantiles
         else:
-            predictions_unscaled = self.scaler.inverse_scale(
-                predictions, scale_statistics
-            )
+            predictions_unscaled = self.scaler.inverse_scale(predictions, scale_statistics)
             is_quantile = False
             quantile_levels = [0.5]
 
-        forecasts: List[QuantileForecast] = []
+        forecasts: list[QuantileForecast] = []
         for idx, entry in enumerate(test_data_batch):
             history_length = int(batch_container.history_values.shape[1])
             start_date = entry["start"]
@@ -314,5 +298,3 @@ class TimeSeriesPredictor(Predictor):
 
 
 __all__ = ["TimeSeriesPredictor"]
-
-

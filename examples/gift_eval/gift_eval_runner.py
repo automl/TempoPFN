@@ -6,32 +6,28 @@ This script evaluates the Time Series model on GIFT-Eval datasets using the `src
 
 - Uses `src/gift_eval/data.py` for dataset handling.
 - Uses `src/gift_eval/predictor.TimeSeriesPredictor` for inference.
-- Loads a model from a checkpoint.
+- Loads a model from a local path or downloads from Hugging Face Hub.
 - Writes per-dataset CSV metrics to `output_dir` without creating plots.
 """
 
 import argparse
 import logging
 from pathlib import Path
-from typing import List, Optional
 
-from examples.utils import download_checkpoint_if_needed
+from huggingface_hub import hf_hub_download
 from src.gift_eval.constants import ALL_DATASETS
 from src.gift_eval.evaluate import evaluate_datasets
 from src.gift_eval.predictor import TimeSeriesPredictor
 from src.gift_eval.results import aggregate_results, write_results_to_disk
 
-
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
 logger = logging.getLogger("gift_eval_runner")
 
 
-def _expand_datasets_arg(datasets_arg: List[str] | str) -> List[str]:
+def _expand_datasets_arg(datasets_arg: list[str] | str) -> list[str]:
     """Expand dataset argument to list of dataset names."""
     if isinstance(datasets_arg, str):
         if datasets_arg == "all":
@@ -50,12 +46,12 @@ def _expand_datasets_arg(datasets_arg: List[str] | str) -> List[str]:
 
 def run_evaluation(
     predictor: TimeSeriesPredictor,
-    datasets_arg: List[str] | str,
-    terms_arg: List[str],
+    datasets_arg: list[str] | str,
+    terms_arg: list[str],
     dataset_storage_path: str,
-    max_windows_arg: Optional[int],
+    max_windows_arg: int | None,
     batch_size_arg: int,
-    max_context_length_arg: Optional[int],
+    max_context_length_arg: int | None,
     output_dir_arg: str,
     model_name_arg: str,
     after_each_dataset_flush: bool = True,
@@ -89,16 +85,13 @@ def run_evaluation(
 
 def main():
     """Main execution function."""
-    parser = argparse.ArgumentParser(
-        description="GIFT-Eval Runner: Evaluate TimeSeriesModel on GIFT-Eval datasets"
-    )
+    parser = argparse.ArgumentParser(description="GIFT-Eval Runner: Evaluate TimeSeriesModel on GIFT-Eval datasets")
 
-    # Model configuration
     parser.add_argument(
         "--model_path",
         type=str,
         default=None,
-        help="Path to model checkpoint. If not provided, will download from checkpoint_url.",
+        help="Path to a local model checkpoint. If not provided, will download from Hugging Face Hub.",
     )
     parser.add_argument(
         "--config_path",
@@ -107,16 +100,16 @@ def main():
         help="Path to model config YAML (default: configs/example.yaml)",
     )
     parser.add_argument(
-        "--checkpoint_url",
+        "--hf_repo_id",
         type=str,
-        default="https://www.dropbox.com/scl/fi/mqsni5lehooyaw93y3uzq/checkpoint_38M.pth?rlkey=3uyehvmtted02xkha24zgpzb6&st=seevsbkn&dl=0",
-        help="URL to download checkpoint from if model_path is not provided",
+        default="AutoML-org/TempoPFN",
+        help="Hugging Face Hub repo ID to download from (default: AutoML-org/TempoPFN)",
     )
     parser.add_argument(
-        "--download_dir",
+        "--hf_filename",
         type=str,
-        default="models",
-        help="Directory to download checkpoint to (default: models)",
+        default="models/checkpoint_38M.pth",
+        help="Filename of the checkpoint within the HF repo (default: models/checkpoint_38M.pth)",
     )
 
     # Dataset configuration
@@ -185,22 +178,32 @@ def main():
 
     # Resolve paths
     config_path = Path(args.config_path)
-    download_dir = Path(args.download_dir)
     output_dir = Path(args.output_dir)
 
-    # Determine model path
+    # --- Determine Model Path (Updated) ---
     resolved_model_path = None
     if args.model_path:
+        logger.info("Using local model checkpoint from --model_path: %s", args.model_path)
         resolved_model_path = args.model_path
-    elif args.checkpoint_url:
-        resolved_model_path = download_checkpoint_if_needed(
-            args.checkpoint_url, target_dir=download_dir
-        )
+    else:
+        logger.info("Downloading model from Hugging Face Hub...")
+        logger.info("  Repo: %s", args.hf_repo_id)
+        logger.info("  File: %s", args.hf_filename)
+        try:
+            resolved_model_path = hf_hub_download(
+                repo_id=args.hf_repo_id,
+                filename=args.hf_filename,
+            )
+            logger.info("Download complete. Model path: %s", resolved_model_path)
+        except Exception as e:
+            logger.error("Failed to download model from Hugging Face Hub: %s", e)
+            raise e
 
-    if not resolved_model_path:
+    if not resolved_model_path or not Path(resolved_model_path).exists():
         raise FileNotFoundError(
-            "No model checkpoint provided. Set --model_path or --checkpoint_url."
+            f"Could not resolve model checkpoint. Checked local path: {args.model_path} and HF download."
         )
+    # --- End of Updated Section ---
 
     if not config_path.exists():
         raise FileNotFoundError(f"Config not found: {config_path}")
@@ -235,17 +238,19 @@ def main():
     )
 
     logger.info("Evaluation complete. See results under: %s", output_dir)
-    
+
     # Aggregate all results into a single CSV file
     logger.info("Aggregating results from all datasets...")
     combined_df = aggregate_results(result_root_dir=output_dir)
-    
+
     if combined_df is not None:
-        logger.info("Successfully created aggregated results file: %s/all_results.csv", output_dir)
+        logger.info(
+            "Successfully created aggregated results file: %s/all_results.csv",
+            output_dir,
+        )
     else:
         logger.warning("No results to aggregate. Check that evaluation completed successfully.")
 
 
 if __name__ == "__main__":
     main()
-

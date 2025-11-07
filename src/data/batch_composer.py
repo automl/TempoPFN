@@ -1,7 +1,6 @@
 import json
 import logging
 import random
-from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -30,15 +29,15 @@ class BatchComposer:
     def __init__(
         self,
         base_data_dir: str,
-        generator_proportions: Optional[Dict[str, float]] = None,
+        generator_proportions: dict[str, float] | None = None,
         mixed_batches: bool = True,
-        device: Optional[torch.device] = None,
-        augmentations: Optional[Dict[str, bool]] = None,
-        augmentation_probabilities: Optional[Dict[str, float]] = None,
-        nan_stats_path: Optional[str] = None,
-        nan_patterns_path: Optional[str] = None,
+        device: torch.device | None = None,
+        augmentations: dict[str, bool] | None = None,
+        augmentation_probabilities: dict[str, float] | None = None,
+        nan_stats_path: str | None = None,
+        nan_patterns_path: str | None = None,
         global_seed: int = 42,
-        chosen_scaler_name: Optional[str] = None,
+        chosen_scaler_name: str | None = None,
         rank: int = 0,
         world_size: int = 1,
     ):
@@ -70,9 +69,7 @@ class BatchComposer:
             "scaler_augmentation": 0.5,
         }
         # Optional preferred scaler name provided by training config
-        self.chosen_scaler_name = (
-            chosen_scaler_name.lower() if chosen_scaler_name is not None else None
-        )
+        self.chosen_scaler_name = chosen_scaler_name.lower() if chosen_scaler_name is not None else None
 
         # Setup random state
         self.rng = np.random.default_rng(global_seed)
@@ -95,7 +92,7 @@ class BatchComposer:
             f"augmentation_probabilities={self.augmentation_probabilities}"
         )
 
-    def _setup_augmentations(self, augmentations: Optional[Dict[str, bool]]):
+    def _setup_augmentations(self, augmentations: dict[str, bool] | None):
         """Setup only the augmentations that should remain online (NaN)."""
         default_augmentations = {
             "nan_augmentation": False,
@@ -109,7 +106,7 @@ class BatchComposer:
         self.nan_augmenter = None
         if self.augmentations.get("nan_augmentation", False):
             stats_path_to_use = self.nan_stats_path or DEFAULT_NAN_STATS_PATH
-            stats = json.load(open(stats_path_to_use, "r"))
+            stats = json.load(open(stats_path_to_use))
             self.nan_augmenter = NanAugmenter(
                 p_series_has_nan=stats["p_series_has_nan"],
                 nan_ratio_distribution=stats["nan_ratio_distribution"],
@@ -124,20 +121,18 @@ class BatchComposer:
         """
         if not self.augmentations.get("scaler_augmentation", False):
             return False
-        probability = float(
-            self.augmentation_probabilities.get("scaler_augmentation", 0.0)
-        )
+        probability = float(self.augmentation_probabilities.get("scaler_augmentation", 0.0))
         probability = max(0.0, min(1.0, probability))
         return bool(self.rng.random() < probability)
 
-    def _choose_random_scaler(self) -> Optional[object]:
+    def _choose_random_scaler(self) -> object | None:
         """
         Choose a random scaler for augmentation, explicitly avoiding the one that
         is already selected in the training configuration (if any).
 
         Returns an instance of the selected scaler or None when no valid option exists.
         """
-        chosen: Optional[str] = None
+        chosen: str | None = None
         if self.chosen_scaler_name is not None:
             chosen = self.chosen_scaler_name.strip().lower()
 
@@ -188,11 +183,9 @@ class BatchComposer:
         total = sum(self.generator_proportions.values())
         if total <= 0:
             raise ValueError("Total generator proportions must be positive")
-        self.generator_proportions = {
-            k: v / total for k, v in self.generator_proportions.items()
-        }
+        self.generator_proportions = {k: v / total for k, v in self.generator_proportions.items()}
 
-    def _initialize_datasets(self) -> Dict[str, CyclicalBatchDataset]:
+    def _initialize_datasets(self) -> dict[str, CyclicalBatchDataset]:
         """Initialize CyclicalBatchDataset for each generator with proportion > 0."""
         datasets = {}
 
@@ -215,24 +208,20 @@ class BatchComposer:
                     world_size=self.world_size,
                 )
                 datasets[generator_name] = dataset
-                logger.info(
-                    f"Loaded dataset for {generator_name} (proportion = {proportion})"
-                )
+                logger.info(f"Loaded dataset for {generator_name} (proportion = {proportion})")
 
             except Exception as e:
                 logger.warning(f"Failed to load dataset for {generator_name}: {e}")
                 continue
 
         if not datasets:
-            raise ValueError(
-                f"No valid datasets found in {self.base_data_dir} or all generators have proportion <= 0"
-            )
+            raise ValueError(f"No valid datasets found in {self.base_data_dir} or all generators have proportion <= 0")
 
         return datasets
 
     def _convert_sample_to_tensors(
-        self, sample: dict, future_length: Optional[int] = None
-    ) -> Tuple[torch.Tensor, np.datetime64, Frequency]:
+        self, sample: dict, future_length: int | None = None
+    ) -> tuple[torch.Tensor, np.datetime64, Frequency]:
         """
         Convert a sample dict to tensors and metadata.
 
@@ -253,9 +242,7 @@ class BatchComposer:
             if isinstance(values_data[0], list):
                 # New format: [[channel_values]]
                 values = torch.tensor(values_data[0], dtype=torch.float32)
-                logger.debug(
-                    f"{generator_type}: Using new univariate format, shape: {values.shape}"
-                )
+                logger.debug(f"{generator_type}: Using new univariate format, shape: {values.shape}")
             else:
                 # Old format: [values]
                 values = torch.tensor(values_data, dtype=torch.float32)
@@ -269,9 +256,7 @@ class BatchComposer:
 
             # Stack channels: [1, seq_len, num_channels]
             values = torch.stack(channel_tensors, dim=-1).unsqueeze(0)
-            logger.debug(
-                f"{generator_type}: Using multivariate format, {num_channels} channels, shape: {values.shape}"
-            )
+            logger.debug(f"{generator_type}: Using multivariate format, {num_channels} channels, shape: {values.shape}")
 
         # Handle frequency conversion
         freq_str = sample["frequency"]
@@ -304,9 +289,7 @@ class BatchComposer:
 
         return values, start, frequency
 
-    def _effective_proportions_for_length(
-        self, total_length_for_batch: int
-    ) -> Dict[str, float]:
+    def _effective_proportions_for_length(self, total_length_for_batch: int) -> dict[str, float]:
         """
         Build a simple, length-aware proportion map for the current batch.
 
@@ -319,7 +302,7 @@ class BatchComposer:
         - Normalize the final map to sum to 1.
         """
 
-        def augmented_length_from_name(name: str) -> Optional[int]:
+        def augmented_length_from_name(name: str) -> int | None:
             if not name.startswith("augmented"):
                 return None
             suffix = name[len("augmented") :]
@@ -331,20 +314,16 @@ class BatchComposer:
                 return None
 
         # 1) Adjust proportions with the length-aware rule
-        adjusted: Dict[str, float] = {}
+        adjusted: dict[str, float] = {}
         for name, proportion in self.generator_proportions.items():
             aug_len = augmented_length_from_name(name)
             if aug_len is None:
                 adjusted[name] = proportion
             else:
-                adjusted[name] = (
-                    proportion if aug_len == total_length_for_batch else 0.0
-                )
+                adjusted[name] = proportion if aug_len == total_length_for_batch else 0.0
 
         # 2) Keep only available, positive-weight datasets
-        adjusted = {
-            name: p for name, p in adjusted.items() if name in self.datasets and p > 0.0
-        }
+        adjusted = {name: p for name, p in adjusted.items() if name in self.datasets and p > 0.0}
 
         # 3) Fallback if empty
         if not adjusted:
@@ -362,20 +341,18 @@ class BatchComposer:
         total = sum(adjusted.values())
         return {name: p / total for name, p in adjusted.items()}
 
-    def _compute_sample_counts_for_batch(
-        self, proportions: Dict[str, float], batch_size: int
-    ) -> Dict[str, int]:
+    def _compute_sample_counts_for_batch(self, proportions: dict[str, float], batch_size: int) -> dict[str, int]:
         """
         Convert a proportion map into integer sample counts that sum to batch_size.
 
         Strategy: allocate floor(batch_size * p) to each generator in order, and let the
         last generator absorb any remainder to ensure the total matches exactly.
         """
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         remaining = batch_size
         names = list(proportions.keys())
         values = list(proportions.values())
-        for index, (name, p) in enumerate(zip(names, values)):
+        for index, (name, p) in enumerate(zip(names, values, strict=True)):
             if index == len(names) - 1:
                 counts[name] = remaining
             else:
@@ -384,7 +361,7 @@ class BatchComposer:
                 remaining -= n
         return counts
 
-    def _calculate_generator_samples(self, batch_size: int) -> Dict[str, int]:
+    def _calculate_generator_samples(self, batch_size: int) -> dict[str, int]:
         """
         Calculate the number of samples each generator should contribute.
 
@@ -401,7 +378,7 @@ class BatchComposer:
         proportions = list(self.generator_proportions.values())
 
         # Calculate base samples for each generator
-        for i, (generator, proportion) in enumerate(zip(generators, proportions)):
+        for i, (generator, proportion) in enumerate(zip(generators, proportions, strict=True)):
             if generator not in self.datasets:
                 continue
 
@@ -417,9 +394,9 @@ class BatchComposer:
     def create_batch(
         self,
         batch_size: int = 128,
-        seed: Optional[int] = None,
-        future_length: Optional[int] = None,
-    ) -> Tuple[BatchTimeSeriesContainer, str]:
+        seed: int | None = None,
+        future_length: int | None = None,
+    ) -> tuple[BatchTimeSeriesContainer, str]:
         """
         Create a batch of the specified size.
 
@@ -443,8 +420,8 @@ class BatchComposer:
             return self._create_uniform_batch(batch_size, batch_rng, future_length)
 
     def _create_mixed_batch(
-        self, batch_size: int, future_length: Optional[int] = None
-    ) -> Tuple[BatchTimeSeriesContainer, str]:
+        self, batch_size: int, future_length: int | None = None
+    ) -> tuple[BatchTimeSeriesContainer, str]:
         """Create a mixed batch with samples from multiple generators, rejecting NaNs."""
 
         # Choose total length for this batch; respect length_shortening flag.
@@ -457,11 +434,7 @@ class BatchComposer:
             total_length_for_batch = int(max(LENGTH_CHOICES))
 
         if future_length is None:
-            prediction_length = int(
-                sample_future_length(
-                    range="gift_eval", total_length=total_length_for_batch
-                )
-            )
+            prediction_length = int(sample_future_length(range="gift_eval", total_length=total_length_for_batch))
         else:
             prediction_length = future_length
 
@@ -469,9 +442,7 @@ class BatchComposer:
 
         # Calculate samples per generator using simple, per-batch length-aware proportions
         effective_props = self._effective_proportions_for_length(total_length_for_batch)
-        generator_samples = self._compute_sample_counts_for_batch(
-            effective_props, batch_size
-        )
+        generator_samples = self._compute_sample_counts_for_batch(effective_props, batch_size)
 
         all_values = []
         all_starts = []
@@ -504,9 +475,7 @@ class BatchComposer:
                     if len(generator_values) >= num_samples:
                         break
 
-                    values, sample_start, sample_freq = self._convert_sample_to_tensors(
-                        sample, future_length
-                    )
+                    values, sample_start, sample_freq = self._convert_sample_to_tensors(sample, future_length)
 
                     # Skip if NaNs exist (we inject NaNs later in history only)
                     if torch.isnan(values).any():
@@ -518,9 +487,7 @@ class BatchComposer:
                         if strategy == "cut":
                             max_start_idx = values.shape[1] - total_length_for_batch
                             start_idx = int(self.rng.integers(0, max_start_idx + 1))
-                            values = values[
-                                :, start_idx : start_idx + total_length_for_batch, :
-                            ]
+                            values = values[:, start_idx : start_idx + total_length_for_batch, :]
                         else:
                             indices = np.linspace(
                                 0,
@@ -534,9 +501,7 @@ class BatchComposer:
                     if self._should_apply_scaler_augmentation():
                         scaler = self._choose_random_scaler()
                         if scaler is not None:
-                            values = scaler.scale(
-                                values, scaler.compute_statistics(values)
-                            )
+                            values = scaler.scale(values, scaler.compute_statistics(values))
 
                     generator_values.append(values)
                     generator_starts.append(sample_start)
@@ -544,7 +509,8 @@ class BatchComposer:
 
             if len(generator_values) < num_samples:
                 logger.warning(
-                    f"Generator {generator_name}: collected {len(generator_values)}/{num_samples} after {attempts} attempts"
+                    f"Generator {generator_name}: collected {len(generator_values)}/"
+                    f"{num_samples} after {attempts} attempts"
                 )
 
             # Add the collected valid samples to the main batch lists
@@ -555,16 +521,12 @@ class BatchComposer:
                 actual_proportions[generator_name] = len(generator_values)
 
         if not all_values:
-            raise RuntimeError(
-                "No valid samples could be collected from any generator."
-            )
+            raise RuntimeError("No valid samples could be collected from any generator.")
 
         combined_values = torch.cat(all_values, dim=0)
         # Split into history and future
         combined_history = combined_values[:, :history_length, :]
-        combined_future = combined_values[
-            :, history_length : history_length + prediction_length, :
-        ]
+        combined_future = combined_values[:, history_length : history_length + prediction_length, :]
 
         if self.nan_augmenter is not None:
             combined_history = self.nan_augmenter.transform(combined_history)
@@ -583,8 +545,8 @@ class BatchComposer:
         self,
         batch_size: int,
         batch_rng: np.random.Generator,
-        future_length: Optional[int] = None,
-    ) -> Tuple[BatchTimeSeriesContainer, str]:
+        future_length: int | None = None,
+    ) -> tuple[BatchTimeSeriesContainer, str]:
         """Create a uniform batch with samples from a single generator."""
 
         # Select generator based on proportions
@@ -606,9 +568,7 @@ class BatchComposer:
         all_frequencies = []
 
         for sample in samples:
-            values, sample_start, sample_freq = self._convert_sample_to_tensors(
-                sample, future_length
-            )
+            values, sample_start, sample_freq = self._convert_sample_to_tensors(sample, future_length)
 
             total_length = values.shape[1]
             history_length = max(1, total_length - future_length)
@@ -642,14 +602,14 @@ class BatchComposer:
 
         return container, selected_generator
 
-    def get_dataset_info(self) -> Dict[str, dict]:
+    def get_dataset_info(self) -> dict[str, dict]:
         """Get information about all datasets."""
         info = {}
         for name, dataset in self.datasets.items():
             info[name] = dataset.get_info()
         return info
 
-    def get_generator_info(self) -> Dict[str, any]:
+    def get_generator_info(self) -> dict[str, any]:
         """Get information about the composer configuration."""
         return {
             "mixed_batches": self.mixed_batches,

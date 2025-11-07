@@ -1,5 +1,3 @@
-from typing import Optional
-
 import numpy as np
 import torch
 
@@ -7,8 +5,8 @@ import torch
 def generate_spikes(
     size: int,
     spikes_type: str = "choose_randomly",
-    spike_intervals: Optional[int] = None,
-    n_spikes: Optional[int] = None,
+    spike_intervals: int | None = None,
+    n_spikes: int | None = None,
     to_keep_rate: float = 0.4,
 ):
     spikes = np.zeros(size)
@@ -22,21 +20,15 @@ def generate_spikes(
     spike_duration = build_up_points * 2
 
     if spikes_type == "choose_randomly":
-        spikes_type = np.random.choice(
-            ["regular", "patchy", "random"], p=[0.4, 0.5, 0.1]
-        )
+        spikes_type = np.random.choice(["regular", "patchy", "random"], p=[0.4, 0.5, 0.1])
 
     if spikes_type == "patchy" and size < 64:
         spikes_type = "regular"
 
     if spikes_type in ["regular", "patchy"]:
         if spike_intervals is None:
-            upper_bound = np.ceil(
-                spike_duration / 0.05
-            )  ## at least 1 spike every 24 periods (120 if 5 spike duration) #np.ceil(spike_duration * size/(size*0.05))
-            lower_bound = np.ceil(
-                spike_duration / 0.15
-            )  ## at most 3 spikes every 24 periods
+            upper_bound = np.ceil(spike_duration / 0.05)  ## at least 1 spike every 24 periods (120 if 5 spike duration)
+            lower_bound = np.ceil(spike_duration / 0.15)  ## at most 3 spikes every 24 periods
             spike_intervals = np.random.randint(lower_bound, upper_bound)
         n_spikes = np.ceil(size / spike_intervals)
         spike_intervals = np.arange(spike_intervals, size, spike_intervals)
@@ -45,15 +37,9 @@ def generate_spikes(
             to_keep = np.random.randint(np.ceil(patch_size * to_keep_rate), patch_size)
     else:
         n_spikes = (
-            n_spikes
-            if n_spikes is not None
-            else np.random.randint(4, min(max(size // (spike_duration * 3), 6), 20))
+            n_spikes if n_spikes is not None else np.random.randint(4, min(max(size // (spike_duration * 3), 6), 20))
         )
-        spike_intervals = np.sort(
-            np.random.choice(
-                np.arange(spike_duration, size), size=n_spikes, replace=False
-            )
-        )
+        spike_intervals = np.sort(np.random.choice(np.arange(spike_duration, size), size=n_spikes, replace=False))
 
     constant_build_rate = False
     if spikes_type in ["regular", "patchy"]:
@@ -74,9 +60,7 @@ def generate_spikes(
                 continue
         if not constant_build_rate:
             random_ = np.random.random()
-        build_up_rate = (
-            np.random.uniform(0.5, 2) if random_ < 0.7 else np.random.uniform(2.5, 5)
-        )
+        build_up_rate = np.random.uniform(0.5, 2) if random_ < 0.7 else np.random.uniform(2.5, 5)
 
         spike_start = interval - build_up_points + 1
         for i in range(build_up_points):
@@ -95,6 +79,4 @@ def generate_spikes(
 
 
 def generate_peak_spikes(ts_size, peak_period, spikes_type="regular"):
-    return generate_spikes(
-        ts_size, spikes_type=spikes_type, spike_intervals=peak_period
-    )
+    return generate_spikes(ts_size, spikes_type=spikes_type, spike_intervals=peak_period)

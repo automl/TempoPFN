@@ -1,7 +1,6 @@
 import logging
 import os
 import random
-from typing import List, Optional
 
 import pyarrow.feather as feather
 import torch
@@ -21,7 +20,7 @@ class CyclicalBatchDataset:
         self,
         batches_dir: str,
         generator_type: str,
-        device: Optional[torch.device] = None,
+        device: torch.device | None = None,
         prefetch_next: bool = True,
         prefetch_threshold: int = 32,
         rank: int = 0,
@@ -72,7 +71,7 @@ class CyclicalBatchDataset:
             f"has {len(self.current_batch_data)} samples."
         )
 
-    def _find_batch_files(self) -> List[str]:
+    def _find_batch_files(self) -> list[str]:
         """
         Find and sort batch files with per-rank sharding for distributed training.
 
@@ -89,9 +88,7 @@ class CyclicalBatchDataset:
 
         # Shard files across ranks: each rank gets every world_size-th file
         # Example with 4 ranks: rank0=[0,4,8,...], rank1=[1,5,9,...], etc.
-        rank_files = [
-            f for i, f in enumerate(all_files) if i % self.world_size == self.rank
-        ]
+        rank_files = [f for i, f in enumerate(all_files) if i % self.world_size == self.rank]
 
         # Shuffle only within this rank's shard for variety
         random.shuffle(rank_files)
@@ -103,7 +100,7 @@ class CyclicalBatchDataset:
 
         return rank_files
 
-    def _load_batch_from_file(self, batch_file: str) -> List[dict]:
+    def _load_batch_from_file(self, batch_file: str) -> list[dict]:
         """Load a batch from arrow file."""
         try:
             table = feather.read_table(batch_file)
@@ -163,9 +160,7 @@ class CyclicalBatchDataset:
         next_batch_file = self.batch_files[next_batch_idx]
         try:
             self.next_batch_data = self._load_batch_from_file(next_batch_file)
-            logger.debug(
-                f"Prefetched next batch {next_batch_idx} for {self.generator_type}"
-            )
+            logger.debug(f"Prefetched next batch {next_batch_idx} for {self.generator_type}")
         except Exception as e:
             logger.warning(f"Failed to prefetch batch {next_batch_idx}: {e}")
             self.next_batch_data = None
@@ -229,7 +224,7 @@ class CyclicalBatchDataset:
         self.current_sample_idx += 1
         return sample
 
-    def get_samples(self, num_samples: int) -> List[dict]:
+    def get_samples(self, num_samples: int) -> list[dict]:
         """Get multiple samples."""
         samples = []
         for _ in range(num_samples):
@@ -260,8 +255,6 @@ class CyclicalBatchDataset:
             "current_batch_size": self.get_total_samples_in_current_batch(),
             "remaining_in_batch": self.get_remaining_samples_in_current_batch(),
             "unique_files_visited": visited_count,
-            "cycle_progress_percent": (visited_count / total_files) * 100
-            if total_files > 0
-            else 0,
+            "cycle_progress_percent": (visited_count / total_files) * 100 if total_files > 0 else 0,
             "full_cycles_completed": self.full_cycles_completed,
         }

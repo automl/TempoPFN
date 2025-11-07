@@ -1,8 +1,8 @@
 import os
 import tempfile
 import time
+from collections.abc import Callable
 from contextlib import redirect_stderr, redirect_stdout
-from typing import Callable
 
 import numpy as np
 from pyo import NewTable, Server, TableRec

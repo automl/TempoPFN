@@ -1,5 +1,4 @@
 import functools
-from typing import Optional
 
 import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
@@ -12,7 +11,6 @@ from sklearn.gaussian_process.kernels import (
     RationalQuadratic,
     WhiteKernel,
 )
-
 from src.synthetic_generation.abstract_classes import AbstractTimeSeriesGenerator
 
 
@@ -27,7 +25,7 @@ class KernelSynthGenerator(AbstractTimeSeriesGenerator):
         self,
         length: int = 1024,
         max_kernels: int = 5,
-        random_seed: Optional[int] = None,
+        random_seed: int | None = None,
     ):
         """
         Parameters
@@ -89,7 +87,7 @@ class KernelSynthGenerator(AbstractTimeSeriesGenerator):
         self,
         kernel: Kernel,
         X: np.ndarray,
-        random_seed: Optional[int] = None,
+        random_seed: int | None = None,
     ) -> np.ndarray:
         """
         Draw a sample from GP prior using GaussianProcessRegressor.
@@ -101,7 +99,7 @@ class KernelSynthGenerator(AbstractTimeSeriesGenerator):
 
         return ts.squeeze()
 
-    def generate_time_series(self, random_seed: Optional[int] = None) -> np.ndarray:
+    def generate_time_series(self, random_seed: int | None = None) -> np.ndarray:
         """
         Generate a single independent univariate time series.
 
