@@ -1,6 +1,6 @@
 # TempoPFN: Synthetic Pre-Training of Linear RNNs for Zero-Shot Time Series Forecasting
 
-[![arXiv](https://img.shields.io/badge/arXiv-2510.25502-b31b1b.svg)](https://arxiv.org/abs/2510.25502) [![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)](https://github.com/automl/TempoPFN/blob/main/LICENSE) [![HF](https://img.shields.io/badge/🤗%20Hugging%20Face-Repo-yellow)](https://huggingface.co/AutoML-org/TempoPFN)
+[![preprint](https://img.shields.io/static/v1?label=Paper&message=2509.26468&color=B31B1B&logo=arXiv)](https://arxiv.org/abs/2510.25502) [![GIFT-Eval](https://img.shields.io/badge/%F0%9F%8F%86%20GIFT--Eval-Leaderboard-0078D4)](https://huggingface.co/spaces/Salesforce/GIFT-Eval) [![huggingface](https://img.shields.io/badge/%F0%9F%A4%97%20HF-Model_Repo-FFD21E)](https://huggingface.co/AutoML-org/TempoPFN) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://github.com/automl/TempoPFN/blob/main/LICENSE)
 
 ---
 
@@ -8,7 +8,7 @@
 
 Built on a **Linear RNN (GatedDeltaProduct)** backbone, TempoPFN performs end-to-end forecasting without patching or windowing. Its design enables fully parallelizable training and inference while maintaining stable temporal state-tracking across long sequences. The GatedDeltaProduct architecture is based on [DeltaProduct](https://arxiv.org/html/2502.10297v3), extended with state-weaving for time series forecasting. For detailed information about the architecture and custom modifications, see [`src/models/gated_deltaproduct/README.md`](src/models/gated_deltaproduct/README.md).
 
-This repository includes the [**pretrained 38M parameter model,**](https://www.dropbox.com/scl/fi/mqsni5lehooyaw93y3uzq/checkpoint_38M.pth?rlkey=3uyehvmtted02xkha24zgpzb6&st=seevsbkn&dl=0), all training and inference code, and the **complete synthetic data generation pipeline** used for pretraining.
+This repository includes the [**pretrained 38M parameter model**](https://www.dropbox.com/scl/fi/mqsni5lehooyaw93y3uzq/checkpoint_38M.pth?rlkey=3uyehvmtted02xkha24zgpzb6&st=seevsbkn&dl=0), all training and inference code, and the **complete synthetic data generation pipeline** used for pretraining.
 
 ## ✨ Why TempoPFN?
 
@@ -48,7 +48,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cu128
 
 # 5. Install dependencies
 pip install .
-pip install ".[dev]"
+pip install .[dev]
 
 # 4. Run the Quick Start Script 
 python examples/quick_start_tempo_pfn.py
