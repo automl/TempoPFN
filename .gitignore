@@ -7,12 +7,12 @@ logs/
 
 wandb/
 AutogluonModels/
-.vscode/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
 
 # C extensions
 *.so
@@ -148,7 +148,9 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# IDE
 .idea/
+.vscode/
 
 # Ruff stuff:
 .ruff_cache/
@@ -156,12 +158,18 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# Caches
+.triton/
+.torchinductor/
+
 # Datasets, logs, plots, etc.
 outputs/
 models/*
 
 *.arrow
+*.csv
 *.png
 *.pt
 *.pdf
 *.gif
+.DS_Store 
