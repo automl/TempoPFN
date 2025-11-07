@@ -24,6 +24,7 @@ dependencies = [
     "notebook",
     "datasets",
     "ujson",
+    "huggingface_hub",
 ]
 
 classifiers = [
@@ -61,3 +62,33 @@ requires = ["setuptools>=68.2.2", "wheel>=0.41.2"]
 build-backend = "setuptools.build_meta"
 
 package-dir = {"" = "src"}
+
+[tool.ruff]
+line-length = 88
+
+# Set the minimum Python version to target.
+target-version = "py312"
+
+# Define the source directories. This matches your project structure.
+src = ["src"]
+
+[tool.ruff.lint]
+# Select the rules to enable. This is a great starting set.
+# E = pycodestyle errors
+# F = Pyflakes (e.g., unused imports, undefined names)
+# I = isort (import sorting)
+# UP = pyupgrade (modernize Python syntax)
+# B = flake8-bugbear (common bugs and bad practices)
+# C4 = flake8-comprehensions (more efficient comprehensions)
+select = ["E", "F", "I", "UP", "B", "C4"]
+
+# You can ignore specific rules here. For example, if you
+# don't want to enforce docstrings, uncomment the line below:
+# ignore = ["D100", "D101", "D102", "D103"]
+
+[tool.ruff.format]
+# Use "black-compatible" formatting.
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
