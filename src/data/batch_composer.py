@@ -242,7 +242,6 @@ class BatchComposer:
             if isinstance(values_data[0], list):
                 # New format: [[channel_values]]
                 values = torch.tensor(values_data[0], dtype=torch.float32)
-                logger.debug(f"{generator_type}: Using new univariate format, shape: {values.shape}")
             else:
                 # Old format: [values]
                 values = torch.tensor(values_data, dtype=torch.float32)

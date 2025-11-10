@@ -18,12 +18,12 @@ from tqdm import tqdm
 
 from src.data.containers import BatchTimeSeriesContainer
 from src.data.loaders import SyntheticValidationDataset, create_synthetic_dataset
-from src.gift_eval.aggregate_results import aggregate_results
 from src.gift_eval.constants import ALL_DATASETS
 from src.gift_eval.evaluate import evaluate_in_memory
+from src.gift_eval.results import aggregate_results
 from src.models.model import TimeSeriesModel
 from src.optim.lr_scheduler import WarmupStableDecayScheduler, get_scheduler
-from src.plotting.plot_multivariate_timeseries import plot_from_container
+from src.plotting.plot_timeseries import plot_from_container
 from src.utils.utils import (
     generate_descriptive_model_name,
     seed_everything,
